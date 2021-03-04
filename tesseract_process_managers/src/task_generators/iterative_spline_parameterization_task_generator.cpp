@@ -37,6 +37,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract_command_language/utils/filter_functions.h>
 #include <tesseract_command_language/utils/flatten_utils.h>
 #include <tesseract_time_parameterization/iterative_spline_parameterization.h>
+#include <tesseract_time_parameterization/instructions_trajectory.h>
 
 namespace tesseract_planning
 {
@@ -123,7 +124,8 @@ int IterativeSplineParameterizationTaskGenerator::conditionalProcess(TaskInput i
   }
 
   // Solve using parameters
-  if (!solver_.compute(ci,
+  TrajectoryContainer::Ptr trajectory = std::make_shared<InstructionsTrajectory>(*ci);
+  if (!solver_.compute(*trajectory,
                        fwd_kin->getLimits().velocity_limits,
                        fwd_kin->getLimits().acceleration_limits,
                        velocity_scaling_factors,
