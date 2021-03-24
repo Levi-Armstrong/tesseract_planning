@@ -33,6 +33,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract_command_language/core/instruction.h>
 #include <tesseract_command_language/core/waypoint.h>
 #include <tesseract_command_language/impl/deserialize.hpp>
+#include <tesseract_common/utils.h>
 
 namespace tesseract_planning
 {
