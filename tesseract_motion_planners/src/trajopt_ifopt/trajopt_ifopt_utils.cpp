@@ -130,6 +130,8 @@ createCollisionConstraints(std::vector<trajopt::JointPosition::ConstPtr> vars,
     CONSOLE_BRIDGE_logWarn("Only Single timestep collision is supported for trajopt_ifopt. PRs welcome");
 
   // Add a collision cost for all steps
+  auto collision_cache = std::make_shared<trajopt::CollisionCache>(vars.size());
+
   for (const auto& var : vars)
   {
     auto kin = env->getManipulatorManager()->getFwdKinematicSolver(manip_info.manipulator);
@@ -137,7 +139,7 @@ createCollisionConstraints(std::vector<trajopt::JointPosition::ConstPtr> vars,
         env->getSceneGraph(), kin->getActiveLinkNames(), env->getCurrentState()->link_transforms);
 
     auto collision_evaluator = std::make_shared<trajopt::SingleTimestepCollisionEvaluator>(
-        kin, env, adjacency_map, Eigen::Isometry3d::Identity(), *config);
+        collision_cache, kin, env, adjacency_map, Eigen::Isometry3d::Identity(), config);
 
     constraints.push_back(std::make_shared<trajopt::DiscreteCollisionConstraintIfopt>(
         collision_evaluator, trajopt::CombineCollisionDataMethod::WEIGHTED_AVERAGE, var));
