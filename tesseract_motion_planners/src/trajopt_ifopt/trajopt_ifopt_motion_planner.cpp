@@ -27,6 +27,8 @@
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <console_bridge/console.h>
 #include <tesseract_environment/core/utils.h>
+#include <trajopt_sqp/ifopt_qp_problem.h>
+#include <trajopt_sqp/trajopt_qp_problem.h>
 #include <trajopt_sqp/trust_region_sqp_solver.h>
 #include <trajopt_sqp/osqp_eigen_solver.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
@@ -153,9 +155,12 @@ tesseract_common::StatusCode TrajOptIfoptMotionPlanner::solve(const PlannerReque
     solver.registerCallback(callback);
   }
 
+  // Create problem
+  auto qp_problem = std::make_shared<trajopt_sqp::IfoptQPProblem>(*(problem->nlp));
+
   // solve
   solver.verbose = verbose;
-  solver.Solve(*(problem->nlp));
+  solver.solve(qp_problem);
 
   // Check success
   if (solver.getStatus() != trajopt_sqp::SQPStatus::NLP_CONVERGED)
