@@ -209,6 +209,11 @@ private:
 #endif  // SWIG
 }  // namespace tesseract_planning
 
+#ifndef SWIG
+// Disable Boost.Serialization tracking for the implementation details of instruction.
+BOOST_CLASS_TRACKING(tesseract_planning::detail_instruction::InstructionInnerBase, boost::serialization::track_never);
+#endif
+
 namespace boost
 {
 // Taken from pagmo to address the same issue

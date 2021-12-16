@@ -175,6 +175,11 @@ private:
 #endif  // SWIG
 }  // namespace tesseract_planning
 
+#ifndef SWIG
+// Disable Boost.Serialization tracking for the implementation details of waypoint.
+BOOST_CLASS_TRACKING(tesseract_planning::detail_waypoint::WaypointInnerBase, boost::serialization::track_never);
+#endif
+
 namespace boost
 {
 // Taken from pagmo to address the same issue
