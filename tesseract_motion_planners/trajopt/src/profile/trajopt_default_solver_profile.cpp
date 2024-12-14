@@ -36,25 +36,23 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract_planning
 {
-void TrajOptDefaultSolverProfile::apply(trajopt::ProblemConstructionInfo& pci) const
+
+TrajOptSolverConfig TrajOptDefaultSolverProfile::createSolverConfig() const
 {
-  pci.basic_info.convex_solver = convex_solver;
-  pci.basic_info.convex_solver_config = convex_solver_config;
-  pci.opt_info = opt_info;
-  pci.callbacks = callbacks;
+  return config;
 }
 
-tinyxml2::XMLElement* TrajOptDefaultSolverProfile::toXML(tinyxml2::XMLDocument& /*doc*/) const { return nullptr; }
+std::vector<sco::Optimizer::Callback> TrajOptDefaultSolverProfile::createSolverCallbacks() const
+{
+  return {};
+}
 
 template <class Archive>
 void TrajOptDefaultSolverProfile::serialize(Archive& ar, const unsigned int /*version*/)
 {
   ar& BOOST_SERIALIZATION_BASE_OBJECT_NVP(TrajOptSolverProfile);
   /** @todo FIX */
-  // ar& BOOST_SERIALIZATION_NVP(convex_solver);
-  // ar& BOOST_SERIALIZATION_NVP(convex_solver_config);
-  // ar& BOOST_SERIALIZATION_NVP(opt_info);
-  // ar& BOOST_SERIALIZATION_NVP(callbacks);
+  // ar& BOOST_SERIALIZATION_NVP(config);
 }
 
 }  // namespace tesseract_planning

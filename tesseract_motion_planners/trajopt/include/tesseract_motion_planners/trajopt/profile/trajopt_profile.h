@@ -35,17 +35,19 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_common/fwd.h>
+#include <tesseract_environment/fwd.h>
 #include <tesseract_command_language/fwd.h>
 #include <tesseract_command_language/profile.h>
-
-namespace tinyxml2
-{
-class XMLElement;  // NOLINT
-class XMLDocument;
-}  // namespace tinyxml2
+#include <tesseract_motion_planners/trajopt/trajopt_solver_config.h>
 
 namespace tesseract_planning
 {
+struct TrajOptCostAndConstraintInfo
+{
+  std::vector<std::shared_ptr<trajopt::TermInfo>> cost_infos;
+  std::vector<std::shared_ptr<trajopt::TermInfo>> cnt_infos;
+};
+
 class TrajOptPlanProfile : public Profile
 {
 public:
@@ -60,21 +62,11 @@ public:
    */
   static std::size_t getStaticKey();
 
-  virtual void apply(trajopt::ProblemConstructionInfo& pci,
-                     const CartesianWaypointPoly& cartesian_waypoint,
-                     const MoveInstructionPoly& parent_instruction,
-                     const tesseract_common::ManipulatorInfo& manip_info,
-                     const std::vector<std::string>& active_links,
-                     int index) const = 0;
-
-  virtual void apply(trajopt::ProblemConstructionInfo& pci,
-                     const JointWaypointPoly& joint_waypoint,
-                     const MoveInstructionPoly& parent_instruction,
-                     const tesseract_common::ManipulatorInfo& manip_info,
-                     const std::vector<std::string>& active_links,
-                     int index) const = 0;
-
-  virtual tinyxml2::XMLElement* toXML(tinyxml2::XMLDocument& doc) const = 0;
+  virtual TrajOptCostAndConstraintInfo createCostAndConstraintInfo(const MoveInstructionPoly& parent_instruction,
+                                                                   const tesseract_common::ManipulatorInfo& manip_info,
+                                                                   const std::shared_ptr<const tesseract_environment::Environment>& env,
+                                                                   const std::vector<std::string>& active_links,
+                                                                   int index) const = 0;
 
 protected:
   friend class boost::serialization::access;
@@ -125,9 +117,9 @@ public:
    */
   static std::size_t getStaticKey();
 
-  virtual void apply(trajopt::ProblemConstructionInfo& pci) const = 0;
+  virtual TrajOptSolverConfig createSolverConfig() const = 0;
 
-  virtual tinyxml2::XMLElement* toXML(tinyxml2::XMLDocument& doc) const = 0;
+  virtual std::vector<sco::Optimizer::Callback> createSolverCallbacks() const = 0;
 
 protected:
   friend class boost::serialization::access;

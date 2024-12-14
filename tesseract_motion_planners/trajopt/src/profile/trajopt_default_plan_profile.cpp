@@ -29,7 +29,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <boost/algorithm/string.hpp>
 #include <boost/serialization/base_object.hpp>
 #include <boost/serialization/nvp.hpp>
-#include <tinyxml2.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_motion_planners/trajopt/trajopt_utils.h>
@@ -41,55 +40,16 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract_planning
 {
-TrajOptDefaultPlanProfile::TrajOptDefaultPlanProfile(const tinyxml2::XMLElement& xml_element)
+
+TrajOptCostAndConstraintInfo createCostAndConstraintInfo(const MoveInstructionPoly& parent_instruction,
+                                                         const tesseract_common::ManipulatorInfo& manip_info,
+                                                         const std::shared_ptr<const tesseract_environment::Environment>& env,
+                                                         const std::vector<std::string>& active_links,
+                                                         int index) const
 {
-  const tinyxml2::XMLElement* cartesian_cost_element = xml_element.FirstChildElement("CartesianCostConfig");
-  const tinyxml2::XMLElement* cartesian_constraint_element = xml_element.FirstChildElement("CartesianConstraintConfig");
-  const tinyxml2::XMLElement* joint_cost_element = xml_element.FirstChildElement("JointCostConfig");
-  const tinyxml2::XMLElement* joint_constraint_element = xml_element.FirstChildElement("JointConstraintConfig");
-  const tinyxml2::XMLElement* cnt_error_fn_element = xml_element.FirstChildElement("ConstraintErrorFunctions");
 
-  int status{ tinyxml2::XMLError::XML_SUCCESS };
-
-  if (cartesian_cost_element != nullptr)
-  {
-    const tinyxml2::XMLElement* cartesian_waypoint_config = cartesian_cost_element->FirstChildElement("CartesianWaypoin"
-                                                                                                      "tConfig");
-    cartesian_cost_config = CartesianWaypointConfig(*cartesian_waypoint_config);
-  }
-
-  if (cartesian_constraint_element != nullptr)
-  {
-    const tinyxml2::XMLElement* cartesian_waypoint_config = cartesian_constraint_element->FirstChildElement("CartesianW"
-                                                                                                            "aypointCon"
-                                                                                                            "fig");
-    cartesian_constraint_config = CartesianWaypointConfig(*cartesian_waypoint_config);
-  }
-
-  if (joint_cost_element != nullptr)
-  {
-    const tinyxml2::XMLElement* cartesian_waypoint_config = joint_cost_element->FirstChildElement("JointWaypointConfi"
-                                                                                                  "g");
-    joint_cost_config = JointWaypointConfig(*cartesian_waypoint_config);
-  }
-
-  if (joint_constraint_element != nullptr)
-  {
-    const tinyxml2::XMLElement* cartesian_waypoint_config = joint_constraint_element->FirstChildElement("JointWaypointC"
-                                                                                                        "onfig");
-    joint_constraint_config = JointWaypointConfig(*cartesian_waypoint_config);
-  }
-
-  if (cnt_error_fn_element != nullptr)
-  {
-    std::string error_fn_name;
-    status = tesseract_common::QueryStringAttribute(cnt_error_fn_element, "type", error_fn_name);
-    if (status != tinyxml2::XML_SUCCESS)
-      throw std::runtime_error("TrajOptPlanProfile: Error parsing ConstraintErrorFunctions plugin attribute.");
-
-    // TODO: Implement plugin capabilities
-  }
 }
+
 void TrajOptDefaultPlanProfile::apply(trajopt::ProblemConstructionInfo& pci,
                                       const CartesianWaypointPoly& cartesian_waypoint,
                                       const MoveInstructionPoly& parent_instruction,
@@ -266,7 +226,7 @@ void TrajOptDefaultPlanProfile::apply(trajopt::ProblemConstructionInfo& pci,
   addConstraintErrorFunctions(pci, index);
 }
 
-void TrajOptDefaultPlanProfile::addConstraintErrorFunctions(trajopt::ProblemConstructionInfo& pci, int index) const
+void TrajOptDefaultPlanProfile::addConstraintErrorFunctions(TrajOptCostAndConstraintInfo &cost_and_constraints_info, int index) const
 {
   for (const auto& c : constraint_error_functions)
   {
@@ -278,40 +238,8 @@ void TrajOptDefaultPlanProfile::addConstraintErrorFunctions(trajopt::ProblemCons
     ef->constraint_type = std::get<2>(c);
     ef->coeff = std::get<3>(c);
 
-    pci.cnt_infos.push_back(ef);
+    cost_and_constraints_info.cnt_infos.push_back(ef);
   }
-}
-
-tinyxml2::XMLElement* TrajOptDefaultPlanProfile::toXML(tinyxml2::XMLDocument& doc) const
-{
-  tinyxml2::XMLElement* xml_planner = doc.NewElement("Planner");
-  xml_planner->SetAttribute("type", std::to_string(1).c_str());
-
-  tinyxml2::XMLElement* xml_trajopt = doc.NewElement("TrajOptDefaultPlanProfile");
-
-  tinyxml2::XMLElement* xml_cart_cost_parent = doc.NewElement("CartesianCostConfig");
-  tinyxml2::XMLElement* xml_cart_cost = cartesian_cost_config.toXML(doc);
-  xml_cart_cost_parent->InsertEndChild(xml_cart_cost);
-  xml_trajopt->InsertEndChild(xml_cart_cost_parent);
-
-  tinyxml2::XMLElement* xml_cart_cnt_parent = doc.NewElement("CartesianConstraintConfig");
-  tinyxml2::XMLElement* xml_cart_cnt = cartesian_constraint_config.toXML(doc);
-  xml_cart_cnt_parent->InsertEndChild(xml_cart_cnt);
-  xml_trajopt->InsertEndChild(xml_cart_cnt_parent);
-
-  tinyxml2::XMLElement* xml_joint_cost_parent = doc.NewElement("JointCostConfig");
-  tinyxml2::XMLElement* xml_joint_cost = joint_cost_config.toXML(doc);
-  xml_joint_cost_parent->InsertEndChild(xml_joint_cost);
-  xml_trajopt->InsertEndChild(xml_joint_cost_parent);
-
-  tinyxml2::XMLElement* xml_joint_cnt_parent = doc.NewElement("JointConstraintConfig");
-  tinyxml2::XMLElement* xml_joint_cnt = joint_constraint_config.toXML(doc);
-  xml_joint_cnt_parent->InsertEndChild(xml_joint_cnt);
-  xml_trajopt->InsertEndChild(xml_joint_cnt_parent);
-
-  xml_planner->InsertEndChild(xml_trajopt);
-
-  return xml_planner;
 }
 
 template <class Archive>

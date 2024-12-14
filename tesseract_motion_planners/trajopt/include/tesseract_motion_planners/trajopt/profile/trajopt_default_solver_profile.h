@@ -38,21 +38,11 @@ public:
   using Ptr = std::shared_ptr<TrajOptDefaultSolverProfile>;
   using ConstPtr = std::shared_ptr<const TrajOptDefaultSolverProfile>;
 
-  /** @brief The Convex solver to use */
-  sco::ModelType convex_solver{ sco::ModelType::OSQP };
+  TrajOptSolverConfig config;
 
-  /** @brief The convex solver config to use, if nullptr the default settings are used */
-  sco::ModelConfig::Ptr convex_solver_config{ nullptr };
+  TrajOptSolverConfig createSolverConfig() const override;
 
-  /** @brief Optimization paramters */
-  sco::BasicTrustRegionSQPParameters opt_info;
-
-  /** @brief Optimization callbacks */
-  std::vector<sco::Optimizer::Callback> callbacks;
-
-  void apply(trajopt::ProblemConstructionInfo& pci) const override;
-
-  tinyxml2::XMLElement* toXML(tinyxml2::XMLDocument& doc) const override;
+  std::vector<sco::Optimizer::Callback> createSolverCallbacks() const override;
 
 protected:
   friend class boost::serialization::access;
