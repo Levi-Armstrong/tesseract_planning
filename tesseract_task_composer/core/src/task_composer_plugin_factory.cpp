@@ -279,6 +279,88 @@ std::string TaskComposerPluginFactory::getDefaultTaskComposerNodePlugin() const
   return task_plugin_info.default_plugin;
 }
 
+// void TaskComposerPluginFactory::addTaskComposerProfilePlugin(const std::string& task_ns,
+//                                                              const std::string& section_name,
+//                                                              const std::string& profile_name,
+//                                                              tesseract_common::PluginInfo plugin_info)
+// {
+//   impl_->profile_plugin_infos[task_ns][section_name].plugins[profile_name] = std::move(plugin_info);
+// }
+
+// PluginInfoMap TaskComposerPluginFactory::getTaskComposerProfilePlugins(const std::string& task_ns, const std::string& section_name) const
+// {
+//   return std::as_const(*impl_).profile_plugin_info.at(task_ns).at(section_name).plugins;
+// }
+
+// void TaskComposerPluginFactory::removeTaskComposerProfilePlugin(const std::string& task_ns, const std::string& section_name, const std::string& profile_name)
+// {
+//   auto& profile_plugin_info = impl_->task_plugin_info;
+//   auto tn_it = profile_plugin_info.find(task_ns);
+//   if (tn_it == profile_plugin_info.end())
+//     throw std::runtime_error("TaskComposerPluginFactory, tried to remove task composer profile under task namespace '" + task_ns +
+//                              "' that does not exist!");
+
+//   auto sn_it = tn_it->second.find(section_name);
+//   if (sn_it == tn_it->second.end())
+//     throw std::runtime_error("TaskComposerPluginFactory, tried to remove task composer profile under task section name '" + section_name +
+//                              "' that does not exist!");
+
+//   auto cm_it = sn_it->second.plugins.find(profile_name);
+//   if (cm_it == sn_it->second.plugins.end())
+//     throw std::runtime_error("TaskComposerPluginFactory, tried to remove task composer profile '" + pofile_name +
+//                              "' that does not exist!");
+
+//   sn_it->second.plugins.erase(cm_it);
+
+//   if (sn_it->second.default_plugin == profile_name)
+//     sn_it->second.default_plugin.clear();
+// }
+
+// void TaskComposerPluginFactory::setDefaultTaskComposerProfilePlugin(const std::string& task_ns, const std::string& section_name, const std::string& profile_name)
+// {
+//   auto& profile_plugin_info = impl_->task_plugin_info;
+//   auto tn_it = profile_plugin_info.find(task_ns);
+//   if (tn_it == profile_plugin_info.end())
+//     throw std::runtime_error("TaskComposerPluginFactory, tried to set default task composer profile under task namespace '" + task_ns +
+//                              "' that does not exist!");
+
+//   auto sn_it = tn_it->second.find(section_name);
+//   if (sn_it == tn_it->second.end())
+//     throw std::runtime_error("TaskComposerPluginFactory, tried to set default task composer profile under task section name '" + section_name +
+//                              "' that does not exist!");
+
+//   auto cm_it = sn_it->second.plugins.find(profile_name);
+//   if (cm_it == sn_it->second.plugins.end())
+//     throw std::runtime_error("TaskComposerPluginFactory, tried to set default task composer profile '" + pofile_name +
+//                              "' that does not exist!");
+
+//   sn_it->second.default_plugin = profile_name
+// }
+
+// std::string TaskComposerPluginFactory::getDefaultTaskComposerProfilePlugin(const std::string& task_ns, const std::string& section_name) const
+// {
+//   auto& profile_plugin_info = impl_->task_plugin_info;
+//   auto tn_it = profile_plugin_info.find(task_ns);
+//   if (tn_it == profile_plugin_info.end())
+//     throw std::runtime_error("TaskComposerPluginFactory, tried to get default task composer profile under task namespace '" + task_ns +
+//                              "' that does not exist!");
+
+//   auto sn_it = tn_it->second.find(section_name);
+//   if (sn_it == tn_it->second.end())
+//     throw std::runtime_error("TaskComposerPluginFactory, tried to get default task composer profile under task section name '" + section_name +
+//                              "' that does not exist!");
+
+//   auto cm_it = sn_it->second.plugins.find(profile_name);
+//   if (cm_it == sn_it->second.plugins.end())
+//     throw std::runtime_error("TaskComposerPluginFactory, tried to get default task composer profile '" + pofile_name +
+//                              "' that does not exist!");
+
+//   if (sn_it->second.default_plugin.empty())
+//     return sn_it->second.plugins.begin()->first;
+
+//   return sn_it->second.default_plugin;
+// }
+
 std::unique_ptr<TaskComposerExecutor>
 TaskComposerPluginFactory::createTaskComposerExecutor(const std::string& name) const
 {
@@ -363,6 +445,17 @@ TaskComposerPluginFactory::createTaskComposerNode(const std::string& name,
     return nullptr;
   }
 }
+
+// std::unique_ptr<tesseract_common::Profile> TaskComposerPluginFactory::createTaskComposerProfile(const std::string& task_ns, const std::string& section_name, const std::string& profile_name) const
+// {
+
+// }
+
+// std::unique_ptr<tesseract_common::Profile>
+// TaskComposerPluginFactory::createTaskComposerProfile(const std::string& task_ns, const std::string& section_name, const std::string& profile_name, const tesseract_common::PluginInfo& plugin_info) const
+// {
+
+// }
 
 void TaskComposerPluginFactory::saveConfig(const std::filesystem::path& file_path) const
 {

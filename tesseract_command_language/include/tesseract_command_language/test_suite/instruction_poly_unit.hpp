@@ -91,6 +91,7 @@ inline void runInstructionSerializationTest(const InstructionPoly& inst)
   auto ninst = tesseract_common::Serialization::fromArchiveFileXML<InstructionPoly>(filepath);
   EXPECT_TRUE(inst == ninst);
 }
+
 }  // namespace tesseract_planning::test_suite
 
 #endif  // TESSERACT_COMMAND_LANGUAGE_INSTRUCTION_POLY_UNIT_HPP

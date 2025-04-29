@@ -427,6 +427,12 @@ TEST(TesseractCommandLanguageUnit, CompositeInstructionTests)  // NOLINT
   InstructionPoly poly{ instr };
   test_suite::runInstructionSerializationTest(poly);
 
+  { // This is commonly done when using with ros so testing here to catch error
+    const std::string any_string = tesseract_common::Serialization::toArchiveStringXML<tesseract_common::AnyPoly>(instr);
+    auto ninstr = tesseract_common::Serialization::fromArchiveStringXML<tesseract_common::AnyPoly>(any_string);
+    EXPECT_TRUE(instr == ninstr.as<CompositeInstruction>());
+  }
+
   T insert_program(instr.begin(), instr.end());
   EXPECT_FALSE(insert_program.getUUID().is_nil());
   EXPECT_TRUE(insert_program.getParentUUID().is_nil());
