@@ -138,6 +138,7 @@ TaskComposerNode::TaskComposerNode(std::string name,
 
 int TaskComposerNode::run(TaskComposerContext& context, OptionalTaskComposerExecutor executor) const
 {
+  std::cerr << name_ << " : start\n";
   auto start_time = std::chrono::system_clock::now();
   if (context.isAborted())
   {
@@ -149,6 +150,7 @@ int TaskComposerNode::run(TaskComposerContext& context, OptionalTaskComposerExec
     info.status_message = "Aborted";
     info.aborted_ = true;
     context.task_infos.addInfo(info);
+    std::cerr << name_ << " : end\n";
     return 0;
   }
 
@@ -184,6 +186,7 @@ int TaskComposerNode::run(TaskComposerContext& context, OptionalTaskComposerExec
   }
 
   context.task_infos.addInfo(results);
+  std::cerr << name_ << " : end\n";
   return value;
 }
 
