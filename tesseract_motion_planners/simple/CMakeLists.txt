@@ -11,6 +11,7 @@ add_library(
   src/profile/simple_planner_lvs_move_profile.cpp
   src/profile/simple_planner_profile.cpp)
 target_link_libraries(${PROJECT_NAME}_simple PUBLIC ${PROJECT_NAME}_core Boost::boost)
+target_link_libraries(${PROJECT_NAME}_simple PRIVATE Boost::thread)
 target_compile_options(${PROJECT_NAME}_simple PRIVATE ${TESSERACT_COMPILE_OPTIONS_PRIVATE})
 target_compile_options(${PROJECT_NAME}_simple PUBLIC ${TESSERACT_COMPILE_OPTIONS_PUBLIC})
 target_compile_definitions(${PROJECT_NAME}_simple PUBLIC ${TESSERACT_COMPILE_DEFINITIONS})

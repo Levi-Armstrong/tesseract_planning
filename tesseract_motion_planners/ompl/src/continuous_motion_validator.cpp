@@ -27,6 +27,7 @@
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/base/StateValidityChecker.h>
+#include <boost/thread/tss.hpp>
 #include <thread>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
@@ -142,11 +143,26 @@ bool ContinuousMotionValidator::continuousCollisionCheck(const ompl::base::State
   Eigen::Map<Eigen::VectorXd> start_joints = extractor_(s1);
   Eigen::Map<Eigen::VectorXd> finish_joints = extractor_(s2);
 
+#ifdef USE_THREAD_LOCAL
   thread_local tesseract_common::TransformMap state0;
+  thread_local tesseract_common::TransformMap state1;
+#else
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> state0_ptr;
+  if (state0_ptr.get() == nullptr)
+    state0_ptr.reset(new tesseract_common::TransformMap());  // NOLINT
+
+  tesseract_common::TransformMap& state0 = *state0_ptr;
+
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> state1_ptr;
+  if (state1_ptr.get() == nullptr)
+    state1_ptr.reset(new tesseract_common::TransformMap());  // NOLINT
+
+  tesseract_common::TransformMap& state1 = *state1_ptr;
+#endif
+
   state0.clear();
   manip_->calcFwdKin(state0, start_joints);
 
-  thread_local tesseract_common::TransformMap state1;
   state1.clear();
   manip_->calcFwdKin(state1, finish_joints);
 

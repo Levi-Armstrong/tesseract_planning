@@ -27,6 +27,7 @@
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <console_bridge/console.h>
+#include <boost/thread/tss.hpp>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_motion_planners/simple/interpolation.h>
@@ -100,7 +101,16 @@ JointGroupInstructionInfo::~JointGroupInstructionInfo() = default;
 
 Eigen::Isometry3d JointGroupInstructionInfo::calcCartesianPose(const Eigen::VectorXd& jp, bool in_world) const
 {
+#ifdef USE_THREAD_LOCAL
   thread_local tesseract_common::TransformMap transforms;
+#else
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> transforms_ptr;
+  if (transforms_ptr.get() == nullptr)
+    transforms_ptr.reset(new tesseract_common::TransformMap());  // NOLINT
+
+  tesseract_common::TransformMap& transforms = *transforms_ptr;
+#endif
+
   transforms.clear();
   manip->calcFwdKin(transforms, jp);
 
@@ -169,7 +179,16 @@ KinematicGroupInstructionInfo::~KinematicGroupInstructionInfo() = default;
 
 Eigen::Isometry3d KinematicGroupInstructionInfo::calcCartesianPose(const Eigen::VectorXd& jp, bool in_world) const
 {
+#ifdef USE_THREAD_LOCAL
   thread_local tesseract_common::TransformMap transforms;
+#else
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> transforms_ptr;
+  if (transforms_ptr.get() == nullptr)
+    transforms_ptr.reset(new tesseract_common::TransformMap());  // NOLINT
+
+  tesseract_common::TransformMap& transforms = *transforms_ptr;
+#endif
+
   transforms.clear();
   manip->calcFwdKin(transforms, jp);
 
@@ -1160,7 +1179,17 @@ Eigen::VectorXd getClosestJointSolution(const KinematicGroupInstructionInfo& inf
 
   Eigen::VectorXd jp_final;
   tesseract_kinematics::KinGroupIKInput ik_input(cwp, info.working_frame, info.tcp_frame);
+
+#ifdef USE_THREAD_LOCAL
   thread_local tesseract_kinematics::IKSolutions solutions;
+#else
+  static boost::thread_specific_ptr<tesseract_kinematics::IKSolutions> solutions_ptr;
+  if (solutions_ptr.get() == nullptr)
+    solutions_ptr.reset(new tesseract_kinematics::IKSolutions());  // NOLINT
+
+  tesseract_kinematics::IKSolutions& solutions = *solutions_ptr;
+#endif
+
   solutions.clear();
 
   info.manip->calcInvKin(solutions, { ik_input }, seed);
@@ -1226,7 +1255,17 @@ std::array<Eigen::VectorXd, 2> getClosestJointSolution(const KinematicGroupInstr
   // Calculate IK for start and end
   Eigen::VectorXd j1_final;
   tesseract_kinematics::KinGroupIKInput ik_input1(cwp1, info1.working_frame, info1.tcp_frame);
+
+#ifdef USE_THREAD_LOCAL
   thread_local tesseract_kinematics::IKSolutions j1;
+#else
+  static boost::thread_specific_ptr<tesseract_kinematics::IKSolutions> j1_ptr;
+  if (j1_ptr.get() == nullptr)
+    j1_ptr.reset(new tesseract_kinematics::IKSolutions());  // NOLINT
+
+  tesseract_kinematics::IKSolutions& j1 = *j1_ptr;
+#endif
+
   j1.clear();
   info1.manip->calcInvKin(j1, { ik_input1 }, seed);
   j1.erase(std::remove_if(j1.begin(),
@@ -1248,7 +1287,17 @@ std::array<Eigen::VectorXd, 2> getClosestJointSolution(const KinematicGroupInstr
 
   Eigen::VectorXd j2_final;
   tesseract_kinematics::KinGroupIKInput ik_input2(cwp2, info2.working_frame, info2.tcp_frame);
+
+#ifdef USE_THREAD_LOCAL
   thread_local tesseract_kinematics::IKSolutions j2;
+#else
+  static boost::thread_specific_ptr<tesseract_kinematics::IKSolutions> j2_ptr;
+  if (j2_ptr.get() == nullptr)
+    j2_ptr.reset(new tesseract_kinematics::IKSolutions());  // NOLINT
+
+  tesseract_kinematics::IKSolutions& j2 = *j2_ptr;
+#endif
+
   j2.clear();
   info2.manip->calcInvKin(j2, { ik_input2 }, seed);
   j2.erase(std::remove_if(j2.begin(),

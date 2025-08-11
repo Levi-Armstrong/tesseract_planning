@@ -29,6 +29,7 @@
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <console_bridge/console.h>
+#include <boost/thread/tss.hpp>
 #include <Eigen/Geometry>
 #include <vector>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
@@ -83,6 +84,40 @@ std::vector<descartes_light::StateSample<FloatType>> DescartesRobotSampler<Float
   tesseract_kinematics::KinGroupIKInputs ik_inputs;
   ik_inputs.emplace_back(Eigen::Isometry3d::Identity(), target_working_frame_, tcp_frame_);
 
+#ifdef USE_THREAD_LOCAL
+  thread_local tesseract_collision::ContactResultMap coll_results;
+  thread_local tesseract_common::TransformMap transforms;
+  thread_local tesseract_kinematics::IKSolutions ik_solutions;
+  thread_local std::vector<tesseract_kinematics::VectorX<FloatType>> redundant_solutions;
+#else
+  static boost::thread_specific_ptr<tesseract_collision::ContactResultMap> coll_results_ptr;
+  if (coll_results_ptr.get() == nullptr)
+    coll_results_ptr.reset(new tesseract_collision::ContactResultMap());
+
+  tesseract_collision::ContactResultMap& coll_results = *coll_results_ptr;
+
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> transforms_ptr;
+  if (transforms_ptr.get() == nullptr)
+    transforms_ptr.reset(new tesseract_common::TransformMap());
+
+  tesseract_common::TransformMap& transforms = *transforms_ptr;
+
+  static boost::thread_specific_ptr<tesseract_kinematics::IKSolutions> ik_solutions_ptr;
+  if (ik_solutions_ptr.get() == nullptr)
+    ik_solutions_ptr.reset(new tesseract_kinematics::IKSolutions());
+
+  tesseract_kinematics::IKSolutions& ik_solutions = *ik_solutions_ptr;
+
+  static boost::thread_specific_ptr<std::vector<tesseract_kinematics::VectorX<FloatType>>> redundant_solutions_ptr;
+  if (redundant_solutions_ptr.get() == nullptr)
+    redundant_solutions_ptr.reset(new std::vector<tesseract_kinematics::VectorX<FloatType>>());
+
+  std::vector<tesseract_kinematics::VectorX<FloatType>>& redundant_solutions = *redundant_solutions_ptr;
+#endif
+  coll_results.clear();
+  transforms.clear();
+  redundant_solutions.clear();
+
   // Generate the IK solutions for those poses
   std::vector<descartes_light::StateSample<FloatType>> samples;
   for (std::size_t i = 0; i < target_poses.size(); i++)
@@ -92,9 +127,7 @@ std::vector<descartes_light::StateSample<FloatType>> DescartesRobotSampler<Float
     // Get the transformation to the kinematic tip link
     ik_inputs.front().pose = pose * tcp_offset_.inverse();
 
-    thread_local tesseract_kinematics::IKSolutions ik_solutions;
     ik_solutions.clear();
-
     manip_->calcInvKin(ik_solutions, ik_inputs, ik_seed_);
     if (ik_solutions.empty())
       continue;
@@ -103,10 +136,6 @@ std::vector<descartes_light::StateSample<FloatType>> DescartesRobotSampler<Float
                                                                 static_cast<int>(ik_solutions.size()));
 
     found_ik_sol = true;
-
-    // These get cleared in the validate and distance calls
-    thread_local tesseract_collision::ContactResultMap coll_results;
-    thread_local tesseract_common::TransformMap transforms;
 
     // Check each individual joint solution
     for (std::size_t j = 0; j < ik_solutions.size(); j++)
@@ -198,7 +227,6 @@ std::vector<descartes_light::StateSample<FloatType>> DescartesRobotSampler<Float
     const std::size_t ns = samples.size();
     for (std::size_t i = 0; i < ns; ++i)
     {
-      thread_local std::vector<tesseract_kinematics::VectorX<FloatType>> redundant_solutions;
       redundant_solutions.clear();
 
       const auto& sample = samples[i];

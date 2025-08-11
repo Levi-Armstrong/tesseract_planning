@@ -20,6 +20,7 @@ target_link_libraries(
          descartes::descartes_light
          Boost::boost
          ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(${PROJECT_NAME}_descartes PRIVATE Boost::thread)
 target_compile_options(${PROJECT_NAME}_descartes PRIVATE ${TESSERACT_COMPILE_OPTIONS_PRIVATE})
 target_compile_options(${PROJECT_NAME}_descartes PUBLIC ${TESSERACT_COMPILE_OPTIONS_PUBLIC})
 target_compile_definitions(${PROJECT_NAME}_descartes PUBLIC ${TESSERACT_COMPILE_DEFINITIONS})

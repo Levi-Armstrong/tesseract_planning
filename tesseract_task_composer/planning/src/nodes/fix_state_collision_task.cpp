@@ -83,7 +83,16 @@ bool stateInCollision(const Eigen::Ref<const Eigen::VectorXd>& start_pos,
   manager->setActiveCollisionObjects(joint_group->getActiveLinkNames());
   manager->applyContactManagerConfig(profile.contact_manager_config);
 
+#ifdef USE_THREAD_LOCAL
   thread_local tesseract_common::TransformMap state;
+#else
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> state_ptr;
+  if (state_ptr.get() == nullptr)
+    state_ptr.reset(new tesseract_common::TransformMap());  // NOLINT
+
+  tesseract_common::TransformMap& state = *state_ptr;
+#endif
+
   state.clear();
   contacts.clear();
   joint_group->calcFwdKin(state, start_pos);
@@ -333,11 +342,9 @@ bool moveWaypointFromCollisionTrajopt(WaypointPoly& waypoint,
   {
     CONSOLE_BRIDGE_logError("MoveWaypointFromCollision did not converge");
 
-    thread_local tesseract_collision::ContactResultMap collisions;
-    collisions.clear();
-
-    thread_local tesseract_common::TransformMap state;
-    state.clear();
+    /** @brief Making this thread_local does not help because it is not called enough during planning */
+    tesseract_collision::ContactResultMap collisions;
+    tesseract_common::TransformMap state;
 
     pci.kin->calcFwdKin(state, start_pos);
     tesseract_collision::DiscreteContactManager::Ptr manager = pci.env->getDiscreteContactManager();

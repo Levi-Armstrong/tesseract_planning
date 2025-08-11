@@ -29,6 +29,7 @@
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <Eigen/Geometry>
+#include <boost/thread/tss.hpp>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_kinematics/core/joint_group.h>
@@ -78,7 +79,16 @@ inline RobotConfig getRobotConfig(const tesseract_kinematics::JointGroup& joint_
                                   const Eigen::Ref<const Eigen::Vector2i>& sign_correction = Eigen::Vector2i::Ones())
 {
   // Get state
+#ifdef USE_THREAD_LOCAL
   thread_local tesseract_common::TransformMap state;
+#else
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> state_ptr;
+  if (state_ptr.get() == nullptr)
+    state_ptr.reset(new tesseract_common::TransformMap());
+
+  tesseract_common::TransformMap& state = *state_ptr;
+#endif
+
   state.clear();
   joint_group.calcFwdKin(state, joint_values.template cast<double>());
 

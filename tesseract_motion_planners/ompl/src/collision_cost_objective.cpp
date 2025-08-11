@@ -26,6 +26,7 @@
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <ompl/base/SpaceInformation.h>
+#include <boost/thread/tss.hpp>
 #include <thread>
 #include <Eigen/Core>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
@@ -76,7 +77,17 @@ ompl::base::Cost CollisionCostObjective::stateCost(const ompl::base::State* stat
   mutex_.unlock();
 
   Eigen::Map<Eigen::VectorXd> finish_joints = extractor_(state);
+
+#ifdef USE_THREAD_LOCAL
   thread_local tesseract_common::TransformMap state1;
+#else
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> transforms_ptr;
+  if (transforms_ptr.get() == nullptr)
+    transforms_ptr.reset(new tesseract_common::TransformMap());  // NOLINT
+
+  tesseract_common::TransformMap& state1 = *transforms_ptr;
+#endif
+
   state1.clear();
   manip_->calcFwdKin(state1, finish_joints);
 
