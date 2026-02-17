@@ -136,6 +136,7 @@ PlannerResponse TrajOptMotionPlanner::solve(const PlannerRequest& request) const
 
   // Optimize
   opt->optimize();
+  std::cerr << "Num Solves: " << opt->results().n_qp_solves << "\n";
   if (opt->results().status != sco::OptStatus::OPT_CONVERGED)
   {
     response.successful = false;

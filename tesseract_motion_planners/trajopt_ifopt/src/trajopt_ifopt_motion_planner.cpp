@@ -179,6 +179,7 @@ PlannerResponse TrajOptIfoptMotionPlanner::solve(const PlannerRequest& request) 
 
   // Solver
   solver->solve(nlp);
+  std::cerr << "Overall Iterations: " << solver->getResults().overall_iteration << "\n";
 
   // Check success
   if (solver->getStatus() != trajopt_sqp::SQPStatus::kConverged)
