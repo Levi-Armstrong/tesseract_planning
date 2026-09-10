@@ -143,7 +143,7 @@ tesseract::common::PropertyTree subTaskConfigSchema()
   return PropertyTreeBuilder()
       .attribute(property_attribute::TYPE, property_type::CONTAINER)
       .boolean("conditional").done()
-      .integer("abort_terminal").done()
+      .int32("abort_terminal").done()
       .container("override")
         .customType("inputs", "tesseract::task_composer::TaskComposerKeys")
             .validator(validateCustomType).done()
@@ -159,16 +159,14 @@ tesseract::common::PropertyTree subTaskSchema()
   using namespace tesseract::common;
   // clang-format off
   return PropertyTreeBuilder()
-      .attribute(property_attribute::TYPE, property_type::CONTAINER)
-      .beginOneOf()
+      .oneOf()
         .customType("by_class", "tesseract::task_composer::TaskComposerNodeFactory")
-            .acceptsDerivedTypes().validator(validateCustomType).done()
+          .acceptsDerivedTypes().done()
         .container("by_task")
           .string("task").required().done()
           .customType("config", SUB_TASK_CONFIG_SCHEMA_KEY)
               .validator(validateCustomType).done()
         .done()
-      .endOneOf()
       .build();
   // clang-format on
 }

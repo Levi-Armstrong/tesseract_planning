@@ -258,7 +258,7 @@ tesseract::common::PropertyTree TaskflowTaskComposerExecutor::schema()
   // clang-format off
   return PropertyTreeBuilder()
       .attribute(property_attribute::TYPE, property_type::CONTAINER)
-      .integer("threads").minimum(1).done()
+      .int32("threads").minimum(1).done()
       .build();
   // clang-format on
 }

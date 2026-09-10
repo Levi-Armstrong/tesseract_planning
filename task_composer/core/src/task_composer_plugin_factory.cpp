@@ -33,6 +33,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/common/yaml_utils.h>
 #include <tesseract/common/yaml_extensions.h>
 #include <tesseract/common/property_tree.h>
+#include <tesseract/common/schema_registry.h>
 #include <tesseract/task_composer/task_composer_plugin_factory.h>
 #include <tesseract/task_composer/task_composer_node.h>
 #include <tesseract/task_composer/task_composer_executor.h>
@@ -140,18 +141,55 @@ void TaskComposerPluginFactory::loadConfig(YAML::Node config)
 {
   if (const YAML::Node& plugin_info = config[tesseract::common::TaskComposerPluginInfo::CONFIG_KEY])
   {
-    auto tc_plugin_info = plugin_info.as<tesseract::common::TaskComposerPluginInfo>();
-    impl_->plugin_loader.search_paths.insert(impl_->plugin_loader.search_paths.end(),
-                                             tc_plugin_info.search_paths.begin(),
-                                             tc_plugin_info.search_paths.end());
-    impl_->plugin_loader.search_libraries.insert(impl_->plugin_loader.search_libraries.end(),
-                                                 tc_plugin_info.search_libraries.begin(),
-                                                 tc_plugin_info.search_libraries.end());
-    impl_->executor_plugin_info = tc_plugin_info.executor_plugin_infos;
-    impl_->task_plugin_info = tc_plugin_info.task_plugin_infos;
+    YAML::Node plugin_info_for_decode = YAML::Clone(plugin_info);
 
-    tesseract::common::removeDuplicates(impl_->plugin_loader.search_paths);
-    tesseract::common::removeDuplicates(impl_->plugin_loader.search_libraries);
+    // Stage 1 validates only the metadata required to discover plugin schemas.
+    auto discovery_schema = YAML::convert<tesseract::common::PluginDiscoveryInfo>::schema();
+    YAML::Node plugin_info_for_discovery_validation = YAML::Clone(plugin_info_for_decode);
+    discovery_schema.mergeConfig(plugin_info_for_discovery_validation, true);
+    auto discovery_errors = discovery_schema.validate(true);
+    if (!discovery_errors.empty())
+    {
+      std::string error_msg = "TaskComposerPluginFactory: Plugin discovery validation failed:\n";
+      for (const auto& error : discovery_errors)
+        error_msg += "  - " + error + "\n";
+
+      throw std::runtime_error(error_msg);
+    }
+
+    const auto discovery_info = plugin_info_for_decode.as<tesseract::common::PluginDiscoveryInfo>();
+    boost_plugin_loader::PluginLoader candidate_loader = impl_->plugin_loader;
+    candidate_loader.search_paths.insert(
+        candidate_loader.search_paths.end(), discovery_info.search_paths.begin(), discovery_info.search_paths.end());
+    candidate_loader.search_libraries.insert(candidate_loader.search_libraries.end(),
+                                             discovery_info.search_libraries.begin(),
+                                             discovery_info.search_libraries.end());
+    tesseract::common::removeDuplicates(candidate_loader.search_paths);
+    tesseract::common::removeDuplicates(candidate_loader.search_libraries);
+
+    // Loading the libraries runs their static schema registrations before strict validation.
+    // The registry retains their lifetime handles alongside the registered schemas.
+    tesseract::common::SchemaRegistry::instance()->loadAndRetainPluginLibraries(candidate_loader);
+
+    // Stage 2 strictly validates the complete configuration after plugin schemas are registered.
+    auto schema = YAML::convert<tesseract::common::TaskComposerPluginInfo>::schema();
+    auto config_tree = schema;
+    YAML::Node plugin_info_for_validation = YAML::Clone(plugin_info_for_decode);
+    config_tree.mergeConfig(plugin_info_for_validation, false);
+    auto errors = config_tree.validate(false);
+    if (!errors.empty())
+    {
+      std::string error_msg = "TaskComposerPluginFactory: Configuration validation failed:\n";
+      for (const auto& error : errors)
+        error_msg += "  - " + error + "\n";
+
+      throw std::runtime_error(error_msg);
+    }
+
+    auto tc_plugin_info = plugin_info_for_decode.as<tesseract::common::TaskComposerPluginInfo>();
+    impl_->executor_plugin_info = std::move(tc_plugin_info.executor_plugin_infos);
+    impl_->task_plugin_info = std::move(tc_plugin_info.task_plugin_infos);
+    impl_->plugin_loader = std::move(candidate_loader);
   }
 }
 

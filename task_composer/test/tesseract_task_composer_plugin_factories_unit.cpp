@@ -37,6 +37,15 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 using namespace tesseract::task_composer;
 
+std::filesystem::path getTaskComposerConfigPath()
+{
+#ifdef TESSERACT_TASK_COMPOSER_HAS_TRAJOPT_IFOPT
+  return std::filesystem::path(TESSERACT_TASK_COMPOSER_DIR) / "config/task_composer_plugins.yaml";
+#else
+  return std::filesystem::path(TESSERACT_TASK_COMPOSER_DIR) / "config/task_composer_plugins_no_trajopt_ifopt.yaml";
+#endif
+}
+
 void runTaskComposerFactoryTest(TaskComposerPluginFactory& factory, YAML::Node plugin_config)
 {
   const YAML::Node& plugin_info = plugin_config[tesseract::common::TaskComposerPluginInfo::CONFIG_KEY];
@@ -208,6 +217,98 @@ TEST(TesseractTaskComposerFactoryUnit, LoadAndExportPluginTest)  // NOLINT
     TaskComposerPluginFactory check_factory(export_config_path, locator);
     runTaskComposerFactoryTest(check_factory, plugin_config);
   }
+}
+
+TEST(TesseractTaskComposerFactoryUnit, MissingPluginsSectionThrows)  // NOLINT
+{
+  tesseract::common::GeneralResourceLocator locator;
+  YAML::Node config;
+  config[tesseract::common::TaskComposerPluginInfo::CONFIG_KEY]["executors"]["default"] = "executor";
+
+  EXPECT_THROW(TaskComposerPluginFactory(config, locator), std::runtime_error);
+}
+
+TEST(TesseractTaskComposerFactoryUnit, InvalidBuiltInPluginConfigThrows)  // NOLINT
+{
+  tesseract::common::GeneralResourceLocator locator;
+  const std::filesystem::path config_path = getTaskComposerConfigPath();
+  YAML::Node config = YAML::LoadFile(config_path.string());
+  YAML::Node plugins = config[tesseract::common::TaskComposerPluginInfo::CONFIG_KEY]["executors"]["plugins"];
+  plugins["TaskflowExecutor"]["config"]["threads"] = 0;
+
+  EXPECT_THROW(TaskComposerPluginFactory(config, locator), std::runtime_error);
+}
+
+TEST(TesseractTaskComposerFactoryUnit, FailedYamlReloadPreservesFactoryState)  // NOLINT
+{
+  tesseract::common::GeneralResourceLocator locator;
+  const std::filesystem::path config_path = getTaskComposerConfigPath();
+  YAML::Node valid_config = tesseract::common::loadYamlFile(config_path.string(), locator);
+  TaskComposerPluginFactory factory(valid_config, locator);
+
+  const auto initial_search_paths = factory.getSearchPaths();
+  const auto initial_search_libraries = factory.getSearchLibraries();
+  const auto initial_executor_plugins = factory.getTaskComposerExecutorPlugins();
+  const auto initial_node_plugins = factory.getTaskComposerNodePlugins();
+  const auto initial_default_executor = factory.getDefaultTaskComposerExecutorPlugin();
+  const auto initial_default_node = factory.getDefaultTaskComposerNodePlugin();
+
+  ASSERT_NE(factory.createTaskComposerExecutor(initial_default_executor), nullptr);
+  ASSERT_NE(factory.createTaskComposerNode(initial_default_node), nullptr);
+
+  YAML::Node malformed_discovery;
+  auto malformed_plugin_info = malformed_discovery[tesseract::common::TaskComposerPluginInfo::CONFIG_KEY];
+  malformed_plugin_info["search_paths"] = "/tmp/plugins";
+  malformed_plugin_info["search_libraries"].push_back("library_that_does_not_exist");
+
+  try
+  {
+    factory.loadConfig(malformed_discovery, locator);
+    FAIL() << "Expected plugin discovery validation to fail";
+  }
+  catch (const std::runtime_error& error)
+  {
+    const std::string message = error.what();
+    EXPECT_NE(message.find("Plugin discovery validation failed"), std::string::npos);
+    EXPECT_NE(message.find("search_paths"), std::string::npos);
+  }
+
+  EXPECT_EQ(factory.getSearchPaths(), initial_search_paths);
+  EXPECT_EQ(factory.getSearchLibraries(), initial_search_libraries);
+  EXPECT_EQ(factory.getTaskComposerExecutorPlugins(), initial_executor_plugins);
+  EXPECT_EQ(factory.getTaskComposerNodePlugins(), initial_node_plugins);
+  EXPECT_EQ(factory.getDefaultTaskComposerExecutorPlugin(), initial_default_executor);
+  EXPECT_EQ(factory.getDefaultTaskComposerNodePlugin(), initial_default_node);
+  EXPECT_NE(factory.createTaskComposerExecutor(initial_default_executor), nullptr);
+  EXPECT_NE(factory.createTaskComposerNode(initial_default_node), nullptr);
+
+  YAML::Node invalid_full_config = YAML::Clone(valid_config);
+  auto invalid_plugin_info = invalid_full_config[tesseract::common::TaskComposerPluginInfo::CONFIG_KEY];
+  invalid_plugin_info["search_paths"].push_back("/tmp/path_that_must_not_be_committed");
+  invalid_plugin_info["executors"]["plugins"]["TaskflowExecutor"]["config"]["threads"] = 0;
+
+  try
+  {
+    factory.loadConfig(invalid_full_config, locator);
+    FAIL() << "Expected complete plugin configuration validation to fail";
+  }
+  catch (const std::runtime_error& error)
+  {
+    EXPECT_NE(std::string(error.what()).find("Configuration validation failed"), std::string::npos);
+  }
+
+  EXPECT_EQ(factory.getSearchPaths(), initial_search_paths);
+  EXPECT_EQ(factory.getSearchLibraries(), initial_search_libraries);
+  EXPECT_EQ(factory.getTaskComposerExecutorPlugins(), initial_executor_plugins);
+  EXPECT_EQ(factory.getTaskComposerNodePlugins(), initial_node_plugins);
+  EXPECT_EQ(factory.getDefaultTaskComposerExecutorPlugin(), initial_default_executor);
+  EXPECT_EQ(factory.getDefaultTaskComposerNodePlugin(), initial_default_node);
+  EXPECT_NE(factory.createTaskComposerExecutor(initial_default_executor), nullptr);
+  EXPECT_NE(factory.createTaskComposerNode(initial_default_node), nullptr);
+
+  EXPECT_NO_THROW(factory.loadConfig(valid_config, locator));
+  EXPECT_NE(factory.createTaskComposerExecutor(initial_default_executor), nullptr);
+  EXPECT_NE(factory.createTaskComposerNode(initial_default_node), nullptr);
 }
 
 TEST(TesseractTaskComposerFactoryUnit, PluginFactorAPIUnit)  // NOLINT

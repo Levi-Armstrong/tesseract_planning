@@ -16,6 +16,14 @@ Task Composer Plugin Config
 
 This file allows you define Excutors and Tasks (aka Nodes). 
 
+Plugin configuration is schema-validated before it is committed. Both ``executors`` and ``tasks`` containers require
+a ``plugins`` map; use ``plugins: {}`` when a container is intentionally empty. Each factory class referenced by
+``class`` must register a concrete ``PropertyTree`` schema and a derived-type relationship to
+``TaskComposerExecutorFactory`` or ``TaskComposerNodeFactory``. The library providing those registrations must appear
+in ``search_libraries`` (or the task-composer plugin environment settings), because libraries are loaded before strict
+validation. Unknown properties, invalid values, missing schemas, and unregistered relationships cause construction of
+``TaskComposerPluginFactory`` to throw a path-qualified validation error.
+
 .. note:: 
     
    Not all nodes are intendend to be standalone task but be comsumed by a task.

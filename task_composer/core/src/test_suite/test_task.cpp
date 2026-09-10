@@ -125,7 +125,7 @@ tesseract::common::PropertyTree TestTask::schema()
       .compose(TaskComposerTask::schema())
       .boolean("throw_exception").done()
       .boolean("set_abort").done()
-      .integer("return_value").done()
+      .int32("return_value").done()
       .build();
   // clang-format on
 }
