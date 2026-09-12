@@ -64,12 +64,15 @@ public:
   bool operator==(const ForEachTask& rhs) const;
   bool operator!=(const ForEachTask& rhs) const;
 
+  /** @brief Return the schema for constructing a ForEachTask from YAML. */
+  static tesseract::common::PropertyTree schema();
+
+  static TaskComposerNodePorts ports();
+
 private:
   TaskFactory task_factory_;
   std::string task_input_port_;
   std::string task_output_port_;
-
-  static TaskComposerNodePorts ports();
 
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,
                                OptionalTaskComposerExecutor executor) const override final;

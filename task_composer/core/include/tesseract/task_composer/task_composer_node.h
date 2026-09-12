@@ -82,8 +82,11 @@ public:
 
   int run(TaskComposerContext& context, OptionalTaskComposerExecutor executor = std::nullopt) const;
 
-  /** @brief Return the PropertyTree schema for this node type. */
+  /** @brief Return the PropertyTree schema for a node with dynamic input and output ports. */
   static tesseract::common::PropertyTree schema();
+
+  /** @brief Return the PropertyTree schema for a node with the specified ports. */
+  static tesseract::common::PropertyTree schema(const TaskComposerNodePorts& ports);
 
   /** @brief Set the name of the node */
   void setName(const std::string& name);

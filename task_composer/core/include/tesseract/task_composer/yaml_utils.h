@@ -95,7 +95,7 @@ tesseract::common::PropertyTree subTaskConfigSchema();
 /**
  * @brief Return the schema for a graph edge entry.
  *
- * Contains a required source (string) and required destinations (list of strings).
+ * Contains a required source (string) and required destinations (a string or list of strings).
  */
 tesseract::common::PropertyTree graphEdgeSchema();
 

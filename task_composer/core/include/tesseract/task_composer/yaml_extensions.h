@@ -33,6 +33,16 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/common/fwd.h>
 #include <tesseract/task_composer/task_composer_keys.h>
 
+namespace tesseract::task_composer
+{
+/** @brief Registry key for a YAML value that may be a string or a list of strings. */
+inline constexpr const char* STRING_OR_STRING_LIST_SCHEMA_KEY = "tesseract::task_composer::StringOrStringList";
+
+/** @brief Registry key for a required task-composer port mapped to a string or list of strings. */
+inline constexpr const char* REQUIRED_STRING_OR_STRING_LIST_SCHEMA_KEY = "tesseract::task_composer::"
+                                                                         "RequiredStringOrStringList";
+}  // namespace tesseract::task_composer
+
 namespace YAML
 {
 //=========================== Task Composer Keys ===========================

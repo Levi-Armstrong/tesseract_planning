@@ -56,13 +56,14 @@ TaskComposerTask::TaskComposerTask(std::string name, TaskComposerNodePorts ports
 
 void TaskComposerTask::setTriggerAbort(bool enable) { trigger_abort_ = enable; }
 
-tesseract::common::PropertyTree TaskComposerTask::schema()
+tesseract::common::PropertyTree TaskComposerTask::schema(const TaskComposerNodePorts& ports)
 {
   using namespace tesseract::common;
   return PropertyTreeBuilder()
       .attribute(property_attribute::TYPE, property_type::CONTAINER)
-      .compose(TaskComposerNode::schema())
+      .compose(TaskComposerNode::schema(ports))
       .boolean("trigger_abort")
+      .defaultVal(false)
       .done()
       .build();
 }

@@ -65,10 +65,11 @@ public:
   IterativeSplineParameterizationTask(IterativeSplineParameterizationTask&&) = delete;
   IterativeSplineParameterizationTask& operator=(IterativeSplineParameterizationTask&&) = delete;
 
+  static tesseract::common::PropertyTree schema() { return TaskComposerTask::schema(ports()); }
+  static TaskComposerNodePorts ports();
+
 private:
   tesseract::time_parameterization::IterativeSplineParameterization solver_;
-
-  static TaskComposerNodePorts ports();
 
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,
                                OptionalTaskComposerExecutor executor = std::nullopt) const override final;

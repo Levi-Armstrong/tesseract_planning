@@ -40,7 +40,8 @@ using RuckigTrajectorySmoothingTaskFactory = TaskComposerTaskFactory<RuckigTraje
 TESSERACT_ADD_TASK_COMPOSER_NODE_PLUGIN(tesseract::task_composer::RuckigTrajectorySmoothingTaskFactory, RuckigTrajectorySmoothingTaskFactory)
 // clang-format on
 
-TESSERACT_SCHEMA_REGISTER(RuckigTrajectorySmoothingTaskFactory, tesseract::task_composer::TaskComposerTask::schema);
+TESSERACT_SCHEMA_REGISTER(RuckigTrajectorySmoothingTaskFactory,
+                          tesseract::task_composer::RuckigTrajectorySmoothingTask::schema);
 
 TESSERACT_SCHEMA_REGISTER_DERIVED_TYPE(tesseract::task_composer::TaskComposerNodeFactory,
                                        RuckigTrajectorySmoothingTaskFactory);

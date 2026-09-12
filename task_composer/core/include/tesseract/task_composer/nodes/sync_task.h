@@ -55,6 +55,9 @@ public:
   explicit SyncTask(std::string name, const YAML::Node& config, const TaskComposerPluginFactory& plugin_factory);
   ~SyncTask() override = default;
 
+  static tesseract::common::PropertyTree schema() { return TaskComposerTask::schema(ports()); }
+  static TaskComposerNodePorts ports() { return {}; }
+
 private:
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,
                                OptionalTaskComposerExecutor executor = std::nullopt) const override final;

@@ -27,16 +27,60 @@
 #include <tesseract/common/property_tree.h>
 #include <tesseract/common/schema_registration.h>
 
+namespace tesseract::task_composer
+{
+namespace
+{
+void validateStringOrStringList(const tesseract::common::PropertyTree& node,
+                                const std::string& path,
+                                std::vector<std::string>& errors)
+{
+  const YAML::Node& value = node.getValue();
+  if (value.IsScalar())
+    return;
+
+  if (!value.IsSequence())
+  {
+    errors.push_back(path + ": expected a string or a list of strings");
+    return;
+  }
+
+  for (std::size_t i = 0; i < value.size(); ++i)
+  {
+    if (!value[i].IsScalar())
+      errors.push_back(path + "[" + std::to_string(i) + "]: expected a string");
+  }
+}
+
+tesseract::common::PropertyTree createStringOrStringListSchema()
+{
+  return tesseract::common::PropertyTreeBuilder().validator(validateStringOrStringList).build();
+}
+
+tesseract::common::PropertyTree createRequiredStringOrStringListSchema()
+{
+  auto schema = createStringOrStringListSchema();
+  schema.setAttribute(tesseract::common::property_attribute::REQUIRED, true);
+  return schema;
+}
+}  // namespace
+}  // namespace tesseract::task_composer
+
 namespace YAML
 {
 tesseract::common::PropertyTree convert<tesseract::task_composer::TaskComposerKeys>::schema()
 {
   using namespace tesseract::common;
   return PropertyTreeBuilder()
-      .attribute(property_attribute::TYPE, property_type::createMap(property_type::STRING))
+      .attribute(property_attribute::TYPE,
+                 property_type::createMap(tesseract::task_composer::STRING_OR_STRING_LIST_SCHEMA_KEY))
       .build();
 }
 }  // namespace YAML
 
+TESSERACT_SCHEMA_REGISTER(tesseract::task_composer::StringOrStringList,
+                          tesseract::task_composer::createStringOrStringListSchema);
+TESSERACT_SCHEMA_REGISTER(tesseract::task_composer::RequiredStringOrStringList,
+                          tesseract::task_composer::createRequiredStringOrStringListSchema);
 TESSERACT_SCHEMA_REGISTER(tesseract::task_composer::TaskComposerKeys,
                           YAML::convert<tesseract::task_composer::TaskComposerKeys>::schema);

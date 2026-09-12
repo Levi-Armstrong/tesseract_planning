@@ -122,10 +122,10 @@ tesseract::common::PropertyTree TestTask::schema()
   // clang-format off
   return PropertyTreeBuilder()
       .attribute(property_attribute::TYPE, property_type::CONTAINER)
-      .compose(TaskComposerTask::schema())
-      .boolean("throw_exception").done()
-      .boolean("set_abort").done()
-      .int32("return_value").done()
+      .compose(TaskComposerTask::schema(TestTask::ports()))
+      .boolean("throw_exception").defaultVal(false).done()
+      .boolean("set_abort").defaultVal(false).done()
+      .int32("return_value").defaultVal(0).done()
       .build();
   // clang-format on
 }

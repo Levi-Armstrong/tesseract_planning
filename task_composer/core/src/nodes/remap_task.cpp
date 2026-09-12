@@ -111,8 +111,9 @@ tesseract::common::PropertyTree RemapTask::schema()
   using namespace tesseract::common;
   return PropertyTreeBuilder()
       .attribute(property_attribute::TYPE, property_type::CONTAINER)
-      .compose(TaskComposerTask::schema())
+      .compose(TaskComposerTask::schema(RemapTask::ports()))
       .boolean("copy")
+      .defaultVal(false)
       .done()
       .build();
 }

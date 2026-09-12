@@ -178,7 +178,8 @@ tesseract::common::PropertyTree graphEdgeSchema()
   return PropertyTreeBuilder()
       .attribute(property_attribute::TYPE, property_type::CONTAINER)
       .string("source").required().done()
-      .customType("destinations", property_type::createList(property_type::STRING)).required().done()
+      .customType("destinations", STRING_OR_STRING_LIST_SCHEMA_KEY).required()
+        .validator(validateCustomType).done()
       .build();
   // clang-format on
 }

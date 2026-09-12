@@ -33,6 +33,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/task_composer/task_composer_task.h>
 #include <tesseract/task_composer/task_composer_node_info.h>
 #include <tesseract/task_composer/task_composer_plugin_factory.h>
+#include <tesseract/common/property_tree.h>
 
 namespace tesseract::task_composer
 {
@@ -53,6 +54,8 @@ TaskComposerPipeline::TaskComposerPipeline(std::string name,
   : TaskComposerGraph(std::move(name), TaskComposerNodeType::PIPELINE, config, plugin_factory)
 {
 }
+
+tesseract::common::PropertyTree TaskComposerPipeline::schema() { return TaskComposerGraph::graphSchema(true); }
 
 TaskComposerNodeInfo TaskComposerPipeline::runImpl(TaskComposerContext& context,
                                                    OptionalTaskComposerExecutor executor) const

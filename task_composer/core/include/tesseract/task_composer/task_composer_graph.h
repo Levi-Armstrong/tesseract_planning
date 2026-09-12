@@ -174,6 +174,9 @@ protected:
                     const YAML::Node& config,
                     const TaskComposerPluginFactory& plugin_factory);
 
+  /** @brief Return the shared graph schema, optionally permitting conditional execution. */
+  static tesseract::common::PropertyTree graphSchema(bool allow_conditional);
+
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,
                                OptionalTaskComposerExecutor executor = std::nullopt) const override;
 

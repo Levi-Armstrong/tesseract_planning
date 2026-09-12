@@ -55,10 +55,10 @@ public:
 
   static tesseract::common::PropertyTree schema();
 
+  static TaskComposerNodePorts ports();
+
 private:
   bool copy_{ false };
-
-  static TaskComposerNodePorts ports();
 
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,
                                OptionalTaskComposerExecutor executor = std::nullopt) const override final;

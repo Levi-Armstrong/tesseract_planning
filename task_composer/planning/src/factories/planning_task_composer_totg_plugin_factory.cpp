@@ -40,7 +40,8 @@ using TimeOptimalParameterizationTaskFactory = TaskComposerTaskFactory<TimeOptim
 TESSERACT_ADD_TASK_COMPOSER_NODE_PLUGIN(tesseract::task_composer::TimeOptimalParameterizationTaskFactory, TimeOptimalParameterizationTaskFactory)
 // clang-format on
 
-TESSERACT_SCHEMA_REGISTER(TimeOptimalParameterizationTaskFactory, tesseract::task_composer::TaskComposerTask::schema);
+TESSERACT_SCHEMA_REGISTER(TimeOptimalParameterizationTaskFactory,
+                          tesseract::task_composer::TimeOptimalParameterizationTask::schema);
 
 TESSERACT_SCHEMA_REGISTER_DERIVED_TYPE(tesseract::task_composer::TaskComposerNodeFactory,
                                        TimeOptimalParameterizationTaskFactory);

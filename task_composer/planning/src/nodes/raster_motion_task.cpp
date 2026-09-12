@@ -470,7 +470,7 @@ tesseract::common::PropertyTree RasterMotionTask::schema()
   // clang-format off
   return PropertyTreeBuilder()
       .attribute(property_attribute::TYPE, property_type::CONTAINER)
-      .compose(TaskComposerTask::schema())
+      .compose(TaskComposerTask::schema(RasterMotionTask::ports()))
       .customType("freespace", SUB_TASK_SCHEMA_KEY).required().validator(validateCustomType).done()
       .customType("raster", SUB_TASK_SCHEMA_KEY).required().validator(validateCustomType).done()
       .customType("transition", SUB_TASK_SCHEMA_KEY).required().validator(validateCustomType).done()

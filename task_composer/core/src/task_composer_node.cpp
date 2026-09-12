@@ -41,8 +41,82 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/task_composer/yaml_extensions.h>
 #include <tesseract/common/property_tree.h>
 
+#include <algorithm>
+#include <string_view>
+
 namespace tesseract::task_composer
 {
+namespace
+{
+void validateMultiplePort(const tesseract::common::PropertyTree& node,
+                          const std::string& path,
+                          std::vector<std::string>& errors)
+{
+  const YAML::Node& value = node.getValue();
+  if (!value || !value.IsSequence())
+    return;
+
+  if (value.size() == 0)
+    errors.push_back(path + ": port key list must not be empty");
+
+  for (std::size_t index = 0; index < value.size(); ++index)
+  {
+    if (!value[index].IsScalar())
+      errors.push_back(path + "[" + std::to_string(index) + "]: expected a string");
+  }
+}
+
+void addPort(tesseract::common::PropertyTree& schema,
+             std::string_view name,
+             TaskComposerNodePorts::Type type,
+             bool required)
+{
+  using namespace tesseract::common;
+  auto& port = schema[std::string(name)];
+  if (type == TaskComposerNodePorts::MULTIPLE)
+  {
+    port.setAttribute(property_attribute::TYPE, property_type::createList(property_type::STRING));
+    port.addValidator(validateMultiplePort);
+  }
+  else
+  {
+    port.setAttribute(property_attribute::TYPE, property_type::STRING);
+  }
+
+  if (required)
+    port.setAttribute(property_attribute::REQUIRED, true);
+}
+
+tesseract::common::PropertyTree
+createPortsSchema(const std::unordered_map<std::string, TaskComposerNodePorts::Type>& required_ports,
+                  const std::unordered_map<std::string, TaskComposerNodePorts::Type>& optional_ports)
+{
+  using namespace tesseract::common;
+  PropertyTree schema;
+  schema.setAttribute(property_attribute::TYPE, property_type::CONTAINER);
+  if (!required_ports.empty())
+    schema.setAttribute(property_attribute::REQUIRED, true);
+
+  std::vector<std::string> names;
+  names.reserve(required_ports.size() + optional_ports.size());
+  for (const auto& entry : required_ports)
+    names.push_back(entry.first);
+  for (const auto& entry : optional_ports)
+    names.push_back(entry.first);
+  std::sort(names.begin(), names.end());
+
+  for (const auto& name : names)
+  {
+    const auto required = required_ports.find(name);
+    if (required != required_ports.end())
+      addPort(schema, name, required->second, true);
+    else
+      addPort(schema, name, optional_ports.at(name), false);
+  }
+  return schema;
+}
+}  // namespace
+
 TaskComposerNode::TaskComposerNode(std::string name,
                                    TaskComposerNodeType type,
                                    TaskComposerNodePorts ports,
@@ -103,11 +177,21 @@ tesseract::common::PropertyTree TaskComposerNode::schema()
   return PropertyTreeBuilder()
       .attribute(property_attribute::TYPE, property_type::CONTAINER)
       .string("namespace").done()
-      .boolean("conditional").done()
-      .customType("inputs", "tesseract::task_composer::TaskComposerKeys").validator(validateCustomType).done()
-      .customType("outputs", "tesseract::task_composer::TaskComposerKeys").validator(validateCustomType).done()
+      .boolean("conditional").defaultVal(false).done()
+      .customType("inputs", property_type::createMap(STRING_OR_STRING_LIST_SCHEMA_KEY))
+        .validator(validateCustomType).done()
+      .customType("outputs", property_type::createMap(STRING_OR_STRING_LIST_SCHEMA_KEY))
+        .validator(validateCustomType).done()
       .build();
   // clang-format on
+}
+
+tesseract::common::PropertyTree TaskComposerNode::schema(const TaskComposerNodePorts& ports)
+{
+  auto schema = TaskComposerNode::schema();
+  schema["inputs"] = createPortsSchema(ports.input_required, ports.input_optional);
+  schema["outputs"] = createPortsSchema(ports.output_required, ports.output_optional);
+  return schema;
 }
 
 int TaskComposerNode::run(TaskComposerContext& context, OptionalTaskComposerExecutor executor) const

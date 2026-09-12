@@ -67,13 +67,14 @@ public:
   UpsampleTrajectoryTask(UpsampleTrajectoryTask&&) = delete;
   UpsampleTrajectoryTask& operator=(UpsampleTrajectoryTask&&) = delete;
 
+  static tesseract::common::PropertyTree schema() { return TaskComposerTask::schema(ports()); }
+  static TaskComposerNodePorts ports();
+
 private:
   void upsample(tesseract::command_language::CompositeInstruction& composite,
                 const tesseract::command_language::CompositeInstruction& current_composite,
                 tesseract::command_language::InstructionPoly& start_instruction,
                 double longest_valid_segment_length) const;
-
-  static TaskComposerNodePorts ports();
 
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,
                                OptionalTaskComposerExecutor executor = std::nullopt) const override final;

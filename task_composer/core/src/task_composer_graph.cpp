@@ -47,6 +47,10 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/task_composer/yaml_utils.h>
 #include <tesseract/common/property_tree.h>
 
+#include <set>
+#include <unordered_map>
+#include <vector>
+
 namespace tesseract::task_composer
 {
 TaskComposerGraph::TaskComposerGraph(std::string name, boost::uuids::uuid parent_uuid)
@@ -76,8 +80,8 @@ TaskComposerGraph::TaskComposerGraph(std::string name,
                                      const TaskComposerPluginFactory& plugin_factory)
   : TaskComposerNode(std::move(name), type, TaskComposerNodePorts{}, config)
 {
-  static const std::set<std::string> graph_expected_keys{ "conditional", "inputs", "outputs",
-                                                          "nodes",       "edges",  "terminals" };
+  static const std::set<std::string> graph_expected_keys{ "namespace", "conditional", "inputs",   "outputs",
+                                                          "nodes",     "edges",       "terminals" };
   tesseract::common::checkForUnknownKeys(config, graph_expected_keys);
 
   std::unordered_map<std::string, boost::uuids::uuid> node_uuids;
@@ -523,6 +527,185 @@ std::string TaskComposerGraph::dump(std::ostream& os,
 
 namespace
 {
+/** @brief Validator that rejects conditional execution for plain graphs. */
+void validateGraphConditional(const tesseract::common::PropertyTree& conditional,
+                              const std::string& path,
+                              std::vector<std::string>& errors)
+{
+  if (!conditional.isNull())
+  {
+    try
+    {
+      if (conditional.as<bool>())
+        errors.push_back(path + ": TaskComposerGraph does not support conditional execution");
+    }
+    catch (const YAML::Exception&)
+    {
+      // The base boolean validator reports the type conversion error.
+      return;
+    }
+  }
+}
+
+struct MappedKey
+{
+  std::string key;
+  std::string path;
+};
+
+void collectMappedKeys(const YAML::Node& mappings, const std::string& path, std::vector<MappedKey>& keys)
+{
+  if (!mappings || !mappings.IsMap())
+    return;
+
+  for (const auto& mapping : mappings)
+  {
+    if (!mapping.first.IsScalar())
+      continue;
+
+    const std::string mapping_path = path + "." + mapping.first.Scalar();
+    if (mapping.second.IsScalar())
+    {
+      keys.push_back({ mapping.second.Scalar(), mapping_path });
+    }
+    else if (mapping.second.IsSequence())
+    {
+      for (std::size_t index = 0; index < mapping.second.size(); ++index)
+      {
+        if (mapping.second[index].IsScalar())
+          keys.push_back({ mapping.second[index].Scalar(), mapping_path + "[" + std::to_string(index) + "]" });
+      }
+    }
+  }
+}
+
+std::set<std::string> mappedKeySet(const YAML::Node& mappings)
+{
+  std::vector<MappedKey> mapped_keys;
+  collectMappedKeys(mappings, {}, mapped_keys);
+
+  std::set<std::string> keys;
+  for (const auto& mapped_key : mapped_keys)
+    keys.insert(mapped_key.key);
+  return keys;
+}
+
+struct GraphNodeData
+{
+  std::vector<MappedKey> inputs;
+  std::set<std::string> outputs;
+  std::set<std::string> predecessors;
+};
+
+/** @brief Validate that every configured child input can be populated by graph inputs or predecessor outputs. */
+void validateGraphDataFlow(const tesseract::common::PropertyTree& node,
+                           const std::string& path,
+                           std::vector<std::string>& errors)
+{
+  const auto* nodes_property = node.find("nodes");
+  if (nodes_property == nullptr)
+    return;
+
+  const YAML::Node& nodes = nodes_property->getValue();
+  if (!nodes || !nodes.IsMap())
+    return;
+
+  std::unordered_map<std::string, GraphNodeData> graph_nodes;
+  bool has_named_subtask{ false };
+  for (const auto& node_entry : nodes)
+  {
+    if (!node_entry.first.IsScalar() || !node_entry.second.IsMap())
+      continue;
+
+    const std::string node_name = node_entry.first.Scalar();
+    auto& node_data = graph_nodes[node_name];
+    if (node_entry.second["task"])
+      has_named_subtask = true;
+
+    const YAML::Node node_config = node_entry.second["config"];
+    if (!node_config || !node_config.IsMap())
+      continue;
+
+    std::string inputs_path = path;
+    inputs_path += ".nodes.";
+    inputs_path += node_name;
+    inputs_path += ".config.inputs";
+    collectMappedKeys(node_config["inputs"], inputs_path, node_data.inputs);
+    node_data.outputs = mappedKeySet(node_config["outputs"]);
+  }
+
+  if (has_named_subtask)
+    return;
+
+  const auto* edges_property = node.find("edges");
+  const YAML::Node edges = (edges_property == nullptr) ? YAML::Node() : edges_property->getValue();
+  if (edges && edges.IsSequence())
+  {
+    for (const auto& edge : edges)
+    {
+      if (!edge.IsMap() || !edge["source"] || !edge["source"].IsScalar() || !edge["destinations"])
+        continue;
+
+      const std::string source = edge["source"].Scalar();
+      const YAML::Node destinations = edge["destinations"];
+      if (destinations.IsScalar())
+      {
+        auto destination = graph_nodes.find(destinations.Scalar());
+        if (destination != graph_nodes.end())
+          destination->second.predecessors.insert(source);
+      }
+      else if (destinations.IsSequence())
+      {
+        for (const auto& destination_node : destinations)
+        {
+          if (!destination_node.IsScalar())
+            continue;
+
+          auto destination = graph_nodes.find(destination_node.Scalar());
+          if (destination != graph_nodes.end())
+            destination->second.predecessors.insert(source);
+        }
+      }
+    }
+  }
+
+  const auto* inputs_property = node.find("inputs");
+  const YAML::Node graph_input_mappings = (inputs_property == nullptr) ? YAML::Node() : inputs_property->getValue();
+  const std::set<std::string> graph_inputs = mappedKeySet(graph_input_mappings);
+  if (graph_inputs.empty())
+    return;
+
+  for (const auto& [node_name, node_data] : graph_nodes)
+  {
+    std::set<std::string> available_keys = graph_inputs;
+    std::set<std::string> visited;
+    std::vector<std::string> pending(node_data.predecessors.begin(), node_data.predecessors.end());
+    while (!pending.empty())
+    {
+      const std::string predecessor_name = std::move(pending.back());
+      pending.pop_back();
+      if (!visited.insert(predecessor_name).second)
+        continue;
+
+      const auto predecessor = graph_nodes.find(predecessor_name);
+      if (predecessor == graph_nodes.end())
+        continue;
+
+      available_keys.insert(predecessor->second.outputs.begin(), predecessor->second.outputs.end());
+      pending.insert(pending.end(), predecessor->second.predecessors.begin(), predecessor->second.predecessors.end());
+    }
+
+    for (const auto& input : node_data.inputs)
+    {
+      if (available_keys.find(input.key) == available_keys.end())
+      {
+        errors.push_back(input.path + ": key '" + input.key +
+                         "' is not supplied by graph inputs or predecessor outputs");
+      }
+    }
+  }
+}
+
 /**
  * @brief Validator that checks terminals, edge sources, and edge destinations all reference keys in the nodes map.
  */
@@ -626,23 +809,46 @@ void validateGraphNodeReferences(const tesseract::common::PropertyTree& node,
     }
   }
 }
-}  // namespace
 
-tesseract::common::PropertyTree TaskComposerGraph::schema()
+tesseract::common::PropertyTree createGraphSchema(const tesseract::common::PropertyTree& node_schema,
+                                                  bool allow_conditional)
 {
   using namespace tesseract::common;
   // clang-format off
-  return PropertyTreeBuilder()
+  PropertyTreeBuilder builder;
+  builder
       .attribute(property_attribute::TYPE, property_type::CONTAINER)
-      .compose(TaskComposerNode::schema())
+      .compose(node_schema)
       .validator(validateGraphNodeReferences)
+      .validator(validateGraphDataFlow)
     .customType("nodes", property_type::createMap(SUB_TASK_SCHEMA_KEY))
-            .required().done()
-    .customType("edges", property_type::createList(GRAPH_EDGE_SCHEMA_KEY)).required()
-          .validator(validateCustomType).done()
-    .customType("terminals", property_type::createList(property_type::STRING)).required().done()
-      .build();
+      .required().done()
+    .customType("edges", property_type::createList(GRAPH_EDGE_SCHEMA_KEY))
+      .required().validator(validateCustomType).done()
+    .customType("terminals", property_type::createList(property_type::STRING))
+      .required().done();
   // clang-format on
+
+  auto schema = builder.build();
+  if (!allow_conditional)
+    schema.at("conditional").addValidator(validateGraphConditional);
+
+  return schema;
+}
+}  // namespace
+
+tesseract::common::PropertyTree TaskComposerGraph::schema() { return graphSchema(false); }
+
+tesseract::common::PropertyTree TaskComposerGraph::graphSchema(bool allow_conditional)
+{
+  auto schema = createGraphSchema(TaskComposerNode::schema(), allow_conditional);
+  schema.at("inputs").setAttribute(
+      tesseract::common::property_attribute::TYPE,
+      tesseract::common::property_type::createMap(REQUIRED_STRING_OR_STRING_LIST_SCHEMA_KEY));
+  schema.at("outputs").setAttribute(
+      tesseract::common::property_attribute::TYPE,
+      tesseract::common::property_type::createMap(REQUIRED_STRING_OR_STRING_LIST_SCHEMA_KEY));
+  return schema;
 }
 
 }  // namespace tesseract::task_composer

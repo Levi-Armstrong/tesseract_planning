@@ -98,8 +98,9 @@ public:
     using namespace tesseract::common;
     return PropertyTreeBuilder()
         .attribute(property_attribute::TYPE, property_type::CONTAINER)
-        .compose(TaskComposerTask::schema())
+        .compose(TaskComposerTask::schema(MotionPlannerTask<MotionPlannerType>::ports()))
         .boolean("format_result_as_input")
+        .defaultVal(true)
         .done()
         .build();
   }
@@ -108,17 +109,19 @@ protected:
   std::shared_ptr<MotionPlannerType> planner_;
   bool format_result_as_input_{ true };
 
+public:
   static TaskComposerNodePorts ports()
   {
     TaskComposerNodePorts ports;
-    ports.input_required[INOUT_PROGRAM_PORT] = TaskComposerNodePorts::SINGLE;
-    ports.input_required[INPUT_ENVIRONMENT_PORT] = TaskComposerNodePorts::SINGLE;
-    ports.input_required[INPUT_PROFILES_PORT] = TaskComposerNodePorts::SINGLE;
+    ports.input_required["program"] = TaskComposerNodePorts::SINGLE;
+    ports.input_required["environment"] = TaskComposerNodePorts::SINGLE;
+    ports.input_required["profiles"] = TaskComposerNodePorts::SINGLE;
 
-    ports.output_required[INOUT_PROGRAM_PORT] = TaskComposerNodePorts::SINGLE;
+    ports.output_required["program"] = TaskComposerNodePorts::SINGLE;
     return ports;
   }
 
+protected:
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,
                                OptionalTaskComposerExecutor /*executor*/ = std::nullopt) const override
   {

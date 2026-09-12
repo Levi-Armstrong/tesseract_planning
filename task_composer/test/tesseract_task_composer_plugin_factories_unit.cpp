@@ -32,10 +32,35 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/common/utils.h>
 #include <tesseract/common/types.h>
 #include <tesseract/common/resource_locator.h>
+#include <tesseract/common/property_tree.h>
+#include <tesseract/common/schema_registry.h>
 #include <tesseract/common/yaml_utils.h>
 #include <tesseract/common/yaml_extensions.h>
 
 using namespace tesseract::task_composer;
+
+namespace
+{
+const std::string TASK_COMPOSER_NODE_FACTORY_SCHEMA_KEY = "tesseract::task_composer::TaskComposerNodeFactory";
+const std::string TASK_COMPOSER_EXECUTOR_FACTORY_SCHEMA_KEY = "tesseract::task_composer::TaskComposerExecutorFactory";
+
+void expectRegisteredFactorySchemas(const std::vector<std::string>& factory_classes, const std::string& base_type)
+{
+  const auto registry = tesseract::common::SchemaRegistry::instance();
+  ASSERT_FALSE(factory_classes.empty());
+
+  for (const std::string& factory_class : factory_classes)
+  {
+    SCOPED_TRACE(factory_class);
+    EXPECT_TRUE(registry->contains(factory_class));
+    EXPECT_TRUE(registry->isDerivedFrom(base_type, factory_class));
+    if (registry->contains(factory_class))
+    {
+      EXPECT_FALSE(registry->get(factory_class).empty());
+    }
+  }
+}
+}  // namespace
 
 std::filesystem::path getTaskComposerConfigPath()
 {
@@ -53,6 +78,10 @@ void runTaskComposerFactoryTest(TaskComposerPluginFactory& factory, YAML::Node p
   const YAML::Node& search_libraries = plugin_info["search_libraries"];
   const YAML::Node& executor_plugins = plugin_info["executors"]["plugins"];
   const YAML::Node& task_plugins = plugin_info["tasks"]["plugins"];
+
+  expectRegisteredFactorySchemas(factory.getAvailableTaskComposerNodePlugins(), TASK_COMPOSER_NODE_FACTORY_SCHEMA_KEY);
+  expectRegisteredFactorySchemas(factory.getAvailableTaskComposerExecutorPlugins(),
+                                 TASK_COMPOSER_EXECUTOR_FACTORY_SCHEMA_KEY);
 
   {
     std::vector<std::string> sp = factory.getSearchPaths();
@@ -78,6 +107,10 @@ void runTaskComposerFactoryTest(TaskComposerPluginFactory& factory, YAML::Node p
   for (auto cm_it = executor_plugins.begin(); cm_it != executor_plugins.end(); ++cm_it)
   {
     auto name = cm_it->first.as<std::string>();
+    const auto factory_class = cm_it->second["class"].as<std::string>();
+    EXPECT_TRUE(tesseract::common::SchemaRegistry::instance()->contains(factory_class));
+    EXPECT_TRUE(tesseract::common::SchemaRegistry::instance()->isDerivedFrom(TASK_COMPOSER_EXECUTOR_FACTORY_SCHEMA_KEY,
+                                                                             factory_class));
 
     TaskComposerExecutor::UPtr cm = factory.createTaskComposerExecutor(name);
     EXPECT_TRUE(cm != nullptr);
@@ -90,6 +123,10 @@ void runTaskComposerFactoryTest(TaskComposerPluginFactory& factory, YAML::Node p
   for (auto cm_it = task_plugins.begin(); cm_it != task_plugins.end(); ++cm_it)
   {
     auto name = cm_it->first.as<std::string>();
+    const auto factory_class = cm_it->second["class"].as<std::string>();
+    EXPECT_TRUE(tesseract::common::SchemaRegistry::instance()->contains(factory_class));
+    EXPECT_TRUE(tesseract::common::SchemaRegistry::instance()->isDerivedFrom(TASK_COMPOSER_NODE_FACTORY_SCHEMA_KEY,
+                                                                             factory_class));
 
     TaskComposerNode::UPtr cm = factory.createTaskComposerNode(name);
     EXPECT_TRUE(cm != nullptr);
@@ -239,6 +276,75 @@ TEST(TesseractTaskComposerFactoryUnit, InvalidBuiltInPluginConfigThrows)  // NOL
   EXPECT_THROW(TaskComposerPluginFactory(config, locator), std::runtime_error);
 }
 
+TEST(TesseractTaskComposerFactoryUnit, MissingRequiredGraphInputThrows)  // NOLINT
+{
+  tesseract::common::GeneralResourceLocator locator;
+  YAML::Node config = YAML::LoadFile(getTaskComposerConfigPath().string());
+  TaskComposerPluginFactory valid_factory(config, locator);
+  YAML::Node inputs = config[tesseract::common::TaskComposerPluginInfo::CONFIG_KEY]["tasks"]["plugins"]
+                            ["DescartesFTask"]["config"]["inputs"];
+  ASSERT_TRUE(inputs.remove("environment"));
+  ASSERT_FALSE(inputs["environment"]);
+
+  auto schema = tesseract::common::SchemaRegistry::instance()->get("PipelineTaskFactory");
+  schema.mergeConfig(
+      config[tesseract::common::TaskComposerPluginInfo::CONFIG_KEY]["tasks"]["plugins"]["DescartesFTask"]["config"]);
+  EXPECT_FALSE(schema.validate().empty());
+
+  EXPECT_THROW(TaskComposerPluginFactory(config, locator), std::runtime_error);
+}
+
+TEST(TesseractTaskComposerFactoryUnit, ForEachTaskFactorySchema)  // NOLINT
+{
+  tesseract::common::GeneralResourceLocator locator;
+  TaskComposerPluginFactory factory(getTaskComposerConfigPath(), locator);
+  const auto registry = tesseract::common::SchemaRegistry::instance();
+
+  ASSERT_TRUE(registry->contains("ForEachTaskFactory"));
+  EXPECT_TRUE(registry->isDerivedFrom(TASK_COMPOSER_NODE_FACTORY_SCHEMA_KEY, "ForEachTaskFactory"));
+
+  auto schema = registry->get("ForEachTaskFactory");
+  schema.mergeConfig(YAML::Load(R"(
+inputs: {container: input_data}
+outputs: {container: output_data}
+operation:
+  input_port: keys
+  output_port: keys
+  class: RemapTaskFactory
+  config:
+    copy: true
+    inputs: {keys: [input]}
+    outputs: {keys: [output]}
+)"));
+  EXPECT_TRUE(schema.validate().empty());
+
+  auto invalid_schema = registry->get("ForEachTaskFactory");
+  invalid_schema.mergeConfig(YAML::Load(R"(
+inputs: {container: input_data}
+outputs: {container: output_data}
+operation:
+  input_port: program
+  output_port: program
+  class: DoesNotExistFactory
+)"));
+  EXPECT_FALSE(invalid_schema.validate().empty());
+
+  auto invalid_config_schema = registry->get("ForEachTaskFactory");
+  invalid_config_schema.mergeConfig(YAML::Load(R"(
+inputs: {container: input_data}
+outputs: {container: output_data}
+operation:
+  input_port: keys
+  output_port: keys
+  class: RemapTaskFactory
+  config:
+    inputs: {keys: [input]}
+    outputs: {keys: [output]}
+    unsupported: true
+)"));
+  EXPECT_FALSE(invalid_config_schema.validate().empty());
+}
+
 TEST(TesseractTaskComposerFactoryUnit, FailedYamlReloadPreservesFactoryState)  // NOLINT
 {
   tesseract::common::GeneralResourceLocator locator;
@@ -295,6 +401,32 @@ TEST(TesseractTaskComposerFactoryUnit, FailedYamlReloadPreservesFactoryState)  /
   catch (const std::runtime_error& error)
   {
     EXPECT_NE(std::string(error.what()).find("Configuration validation failed"), std::string::npos);
+  }
+
+  EXPECT_EQ(factory.getSearchPaths(), initial_search_paths);
+  EXPECT_EQ(factory.getSearchLibraries(), initial_search_libraries);
+  EXPECT_EQ(factory.getTaskComposerExecutorPlugins(), initial_executor_plugins);
+  EXPECT_EQ(factory.getTaskComposerNodePlugins(), initial_node_plugins);
+  EXPECT_EQ(factory.getDefaultTaskComposerExecutorPlugin(), initial_default_executor);
+  EXPECT_EQ(factory.getDefaultTaskComposerNodePlugin(), initial_default_node);
+  EXPECT_NE(factory.createTaskComposerExecutor(initial_default_executor), nullptr);
+  EXPECT_NE(factory.createTaskComposerNode(initial_default_node), nullptr);
+
+  YAML::Node invalid_task_config = YAML::Clone(valid_config);
+  auto task_plugins = invalid_task_config[tesseract::common::TaskComposerPluginInfo::CONFIG_KEY]["tasks"]["plugins"];
+  ASSERT_TRUE(task_plugins.IsMap());
+  ASSERT_FALSE(task_plugins.begin() == task_plugins.end());
+  task_plugins.begin()->second["config"]["unsupported_option"] = true;
+
+  try
+  {
+    factory.loadConfig(invalid_task_config, locator);
+    FAIL() << "Expected task plugin configuration validation to fail";
+  }
+  catch (const std::runtime_error& error)
+  {
+    EXPECT_NE(std::string(error.what()).find("Configuration validation failed"), std::string::npos);
+    EXPECT_NE(std::string(error.what()).find("unsupported_option"), std::string::npos);
   }
 
   EXPECT_EQ(factory.getSearchPaths(), initial_search_paths);

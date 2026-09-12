@@ -41,7 +41,7 @@ TESSERACT_ADD_TASK_COMPOSER_NODE_PLUGIN(tesseract::task_composer::ConstantTCPSpe
 // clang-format on
 
 TESSERACT_SCHEMA_REGISTER(ConstantTCPSpeedParameterizationTaskFactory,
-                          tesseract::task_composer::TaskComposerTask::schema);
+                          tesseract::task_composer::ConstantTCPSpeedParameterizationTask::schema);
 
 TESSERACT_SCHEMA_REGISTER_DERIVED_TYPE(tesseract::task_composer::TaskComposerNodeFactory,
                                        ConstantTCPSpeedParameterizationTaskFactory);

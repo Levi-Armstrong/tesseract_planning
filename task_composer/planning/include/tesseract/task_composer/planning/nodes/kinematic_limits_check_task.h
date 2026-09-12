@@ -62,9 +62,10 @@ public:
   KinematicLimitsCheckTask(KinematicLimitsCheckTask&&) = delete;
   KinematicLimitsCheckTask& operator=(KinematicLimitsCheckTask&&) = delete;
 
-protected:
+  static tesseract::common::PropertyTree schema() { return TaskComposerTask::schema(ports()); }
   static TaskComposerNodePorts ports();
 
+protected:
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,
                                OptionalTaskComposerExecutor /*executor*/) const override final;
 };

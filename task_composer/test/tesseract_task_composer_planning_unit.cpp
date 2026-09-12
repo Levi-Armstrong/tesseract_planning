@@ -62,6 +62,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/common/joint_state.h>
 #include <tesseract/common/profile_dictionary.h>
 #include <tesseract/common/profile_plugin_factory.h>
+#include <tesseract/common/property_tree.h>
 #include <tesseract/common/unit_test_utils.h>
 #include <tesseract/common/serialization.h>
 
@@ -70,6 +71,53 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 using namespace tesseract::task_composer;
 using namespace tesseract::command_language;
 using namespace tesseract::motion_planners;
+
+TEST(TesseractTaskComposerPlanningSchemaUnit, ConstructionSchemaTests)  // NOLINT
+{
+  {
+    auto schema = MotionPlannerTask<TrajOptMotionPlanner>::schema();
+    schema.mergeConfig(YAML::Load("inputs: {program: input, environment: environment, profiles: profiles}\noutputs: "
+                                  "{program: output}"));
+    EXPECT_TRUE(schema.validate().empty());
+    EXPECT_TRUE(schema.at("format_result_as_input").as<bool>());
+  }
+
+  {
+    auto schema = MotionPlannerTask<TrajOptMotionPlanner>::schema();
+    schema.mergeConfig(YAML::Load("inputs: {program: input, environment: environment, profiles: profiles}\n"
+                                  "outputs: {program: output}\n"
+                                  "format_result_as_input: false"));
+    EXPECT_TRUE(schema.validate().empty());
+    EXPECT_FALSE(schema.at("format_result_as_input").as<bool>());
+  }
+
+  {
+    auto schema = RasterMotionTask::schema();
+    schema.mergeConfig(YAML::Load("{}"));
+    const auto errors = schema.validate();
+    EXPECT_TRUE(std::any_of(errors.cbegin(), errors.cend(), [](const std::string& error) {
+      return error.find("freespace") != std::string::npos;
+    }));
+    EXPECT_TRUE(std::any_of(errors.cbegin(), errors.cend(), [](const std::string& error) {
+      return error.find("raster") != std::string::npos;
+    }));
+    EXPECT_TRUE(std::any_of(errors.cbegin(), errors.cend(), [](const std::string& error) {
+      return error.find("transition") != std::string::npos;
+    }));
+  }
+
+  {
+    auto schema = RasterOnlyMotionTask::schema();
+    schema.mergeConfig(YAML::Load("{}"));
+    const auto errors = schema.validate();
+    EXPECT_TRUE(std::any_of(errors.cbegin(), errors.cend(), [](const std::string& error) {
+      return error.find("raster") != std::string::npos;
+    }));
+    EXPECT_TRUE(std::any_of(errors.cbegin(), errors.cend(), [](const std::string& error) {
+      return error.find("transition") != std::string::npos;
+    }));
+  }
+}
 
 /**
  * @brief Collects console_bridge messages logged at debug level for the enclosing scope

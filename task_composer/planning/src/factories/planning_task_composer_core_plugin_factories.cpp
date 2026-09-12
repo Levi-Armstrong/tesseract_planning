@@ -105,21 +105,22 @@ TESSERACT_ADD_TASK_COMPOSER_NODE_PLUGIN(tesseract::task_composer::SimpleMotionPl
 TESSERACT_ADD_TASK_COMPOSER_NODE_PLUGIN(tesseract::task_composer::ProcessPlanningInputTaskFactory, ProcessPlanningInputTaskFactory)
 // clang-format on
 
-TESSERACT_SCHEMA_REGISTER(ContinuousContactCheckTaskFactory, tesseract::task_composer::TaskComposerTask::schema);
-TESSERACT_SCHEMA_REGISTER(DiscreteContactCheckTaskFactory, tesseract::task_composer::TaskComposerTask::schema);
-TESSERACT_SCHEMA_REGISTER(FixStateBoundsTaskFactory, tesseract::task_composer::TaskComposerTask::schema);
-TESSERACT_SCHEMA_REGISTER(FixStateCollisionTaskFactory, tesseract::task_composer::TaskComposerTask::schema);
-TESSERACT_SCHEMA_REGISTER(FormatAsInputTaskFactory, tesseract::task_composer::TaskComposerTask::schema);
-TESSERACT_SCHEMA_REGISTER(FormatAsResultTaskFactory, tesseract::task_composer::TaskComposerTask::schema);
-TESSERACT_SCHEMA_REGISTER(FormatPlanningInputTaskFactory, tesseract::task_composer::TaskComposerTask::schema);
-TESSERACT_SCHEMA_REGISTER(KinematicLimitsCheckTaskFactory, tesseract::task_composer::TaskComposerTask::schema);
-TESSERACT_SCHEMA_REGISTER(MinLengthTaskFactory, tesseract::task_composer::TaskComposerTask::schema);
-TESSERACT_SCHEMA_REGISTER(ProfileSwitchTaskFactory, tesseract::task_composer::TaskComposerTask::schema);
-TESSERACT_SCHEMA_REGISTER(UpsampleTrajectoryTaskFactory, tesseract::task_composer::TaskComposerTask::schema);
+TESSERACT_SCHEMA_REGISTER(ContinuousContactCheckTaskFactory,
+                          tesseract::task_composer::ContinuousContactCheckTask::schema);
+TESSERACT_SCHEMA_REGISTER(DiscreteContactCheckTaskFactory, tesseract::task_composer::DiscreteContactCheckTask::schema);
+TESSERACT_SCHEMA_REGISTER(FixStateBoundsTaskFactory, tesseract::task_composer::FixStateBoundsTask::schema);
+TESSERACT_SCHEMA_REGISTER(FixStateCollisionTaskFactory, tesseract::task_composer::FixStateCollisionTask::schema);
+TESSERACT_SCHEMA_REGISTER(FormatAsInputTaskFactory, tesseract::task_composer::FormatAsInputTask::schema);
+TESSERACT_SCHEMA_REGISTER(FormatAsResultTaskFactory, tesseract::task_composer::FormatAsResultTask::schema);
+TESSERACT_SCHEMA_REGISTER(FormatPlanningInputTaskFactory, tesseract::task_composer::FormatPlanningInputTask::schema);
+TESSERACT_SCHEMA_REGISTER(KinematicLimitsCheckTaskFactory, tesseract::task_composer::KinematicLimitsCheckTask::schema);
+TESSERACT_SCHEMA_REGISTER(MinLengthTaskFactory, tesseract::task_composer::MinLengthTask::schema);
+TESSERACT_SCHEMA_REGISTER(ProfileSwitchTaskFactory, tesseract::task_composer::ProfileSwitchTask::schema);
+TESSERACT_SCHEMA_REGISTER(UpsampleTrajectoryTaskFactory, tesseract::task_composer::UpsampleTrajectoryTask::schema);
 TESSERACT_SCHEMA_REGISTER(RasterMotionTaskFactory, tesseract::task_composer::RasterMotionTask::schema);
 TESSERACT_SCHEMA_REGISTER(RasterOnlyMotionTaskFactory, tesseract::task_composer::RasterOnlyMotionTask::schema);
 TESSERACT_SCHEMA_REGISTER(SimpleMotionPlannerTaskFactory, tesseract::task_composer::SimpleMotionPlannerTask::schema);
-TESSERACT_SCHEMA_REGISTER(ProcessPlanningInputTaskFactory, tesseract::task_composer::TaskComposerTask::schema);
+TESSERACT_SCHEMA_REGISTER(ProcessPlanningInputTaskFactory, tesseract::task_composer::ProcessPlanningInputTask::schema);
 
 TESSERACT_SCHEMA_REGISTER_DERIVED_TYPE(tesseract::task_composer::TaskComposerNodeFactory,
                                        ContinuousContactCheckTaskFactory);

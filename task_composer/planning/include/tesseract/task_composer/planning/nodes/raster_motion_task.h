@@ -93,14 +93,14 @@ public:
 
   static tesseract::common::PropertyTree schema();
 
+  static TaskComposerNodePorts ports();
+
 private:
   TaskFactory freespace_task_factory_;
   TaskFactory raster_task_factory_;
   TaskFactory transition_task_factory_;
 
   static void checkTaskInput(const tesseract::common::AnyPoly& input);
-
-  static TaskComposerNodePorts ports();
 
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,
                                OptionalTaskComposerExecutor executor) const override final;

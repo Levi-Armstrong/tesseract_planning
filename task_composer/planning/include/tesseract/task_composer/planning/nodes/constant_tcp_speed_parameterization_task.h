@@ -62,10 +62,11 @@ public:
   ConstantTCPSpeedParameterizationTask(ConstantTCPSpeedParameterizationTask&&) = delete;
   ConstantTCPSpeedParameterizationTask& operator=(ConstantTCPSpeedParameterizationTask&&) = delete;
 
+  static tesseract::common::PropertyTree schema() { return TaskComposerTask::schema(ports()); }
+  static TaskComposerNodePorts ports();
+
 private:
   tesseract::time_parameterization::ConstantTCPSpeedParameterization solver_;
-
-  static TaskComposerNodePorts ports();
 
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,
                                OptionalTaskComposerExecutor executor = std::nullopt) const override final;

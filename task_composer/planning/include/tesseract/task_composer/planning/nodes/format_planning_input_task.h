@@ -62,9 +62,10 @@ public:
   FormatPlanningInputTask(FormatPlanningInputTask&&) = delete;
   FormatPlanningInputTask& operator=(FormatPlanningInputTask&&) = delete;
 
-private:
+  static tesseract::common::PropertyTree schema() { return TaskComposerTask::schema(ports()); }
   static TaskComposerNodePorts ports();
 
+private:
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,
                                OptionalTaskComposerExecutor executor = std::nullopt) const override final;
 };

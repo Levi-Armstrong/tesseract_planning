@@ -88,11 +88,11 @@ public:
 
   static tesseract::common::PropertyTree schema();
 
+  static TaskComposerNodePorts ports();
+
 private:
   TaskFactory raster_task_factory_;
   TaskFactory transition_task_factory_;
-
-  static TaskComposerNodePorts ports();
 
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,
                                OptionalTaskComposerExecutor executor) const override final;

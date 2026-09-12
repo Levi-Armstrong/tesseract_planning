@@ -24,6 +24,26 @@ in ``search_libraries`` (or the task-composer plugin environment settings), beca
 validation. Unknown properties, invalid values, missing schemas, and unregistered relationships cause construction of
 ``TaskComposerPluginFactory`` to throw a path-qualified validation error.
 
+The runtime ``PropertyTree`` registry is the authoritative schema source. Validation occurs in two stages: discovery
+metadata is validated first, then the requested libraries are loaded and the complete configuration is validated
+strictly against their registered executor and node factory schemas. There is no separately maintained static schema
+file.
+
+When adding a task-composer plugin:
+
+* Make its schema match every YAML field accepted by its constructor, including required fields, fixed defaults, and
+  value constraints.
+* Build each task schema from ``TaskComposerTask::schema(ports())`` so required and optional port names and their
+  cardinality are part of the task's schema. Tasks without additional configuration fields may return that schema
+  directly.
+* Register both the concrete factory schema and its derived-type relationship to ``TaskComposerNodeFactory`` or
+  ``TaskComposerExecutorFactory``.
+* Register schemas for custom nested configuration types referenced by the plugin schema.
+* Extend the registry-completeness and focused construction-schema tests.
+
+This contract covers plugin construction configuration, including strict task-specific port names, required ports, and
+single-versus-multiple key cardinality. Runtime profile payloads remain a separate concern.
+
 .. note:: 
     
    Not all nodes are intendend to be standalone task but be comsumed by a task.

@@ -30,6 +30,8 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <tesseract/common/yaml_utils.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
+#include <tesseract/common/property_tree.h>
+
 #include <tesseract/task_composer/nodes/for_each_task.h>
 #include <tesseract/task_composer/nodes/start_task.h>
 #include <tesseract/task_composer/task_composer_context.h>
@@ -43,6 +45,44 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract::task_composer
 {
+namespace
+{
+void validateOperationSubTask(const tesseract::common::PropertyTree& node,
+                              const std::string& path,
+                              std::vector<std::string>& errors)
+{
+  YAML::Node config = node.toYAML();
+  if (!config || !config.IsMap())
+    return;
+
+  config.remove("input_port");
+  config.remove("output_port");
+
+  auto schema = subTaskSchema();
+  try
+  {
+    schema.mergeConfig(config);
+    for (std::string error : schema.validate())
+    {
+      const std::size_t separator = error.find(':');
+      if (separator != std::string::npos)
+        error.erase(0, separator + 1);
+      std::string full_error = path;
+      full_error += ":";
+      full_error += error;
+      errors.push_back(std::move(full_error));
+    }
+  }
+  catch (const std::exception& e)
+  {
+    std::string error = path;
+    error += ": ";
+    error += e.what();
+    errors.push_back(std::move(error));
+  }
+}
+}  // namespace
+
 // Requried
 const std::string ForEachTask::INOUT_PORT = "container";
 
@@ -54,8 +94,7 @@ ForEachTask::ForEachTask(std::string name, const YAML::Node& config, const TaskC
   static const std::string operation_key{ "operation" };
   if (YAML::Node operation_config = config[operation_key])
   {
-    static const std::set<std::string> tasks_expected_keys{ "input_port", "output_port", "task",
-                                                            "class",      "config",      "override" };
+    static const std::set<std::string> tasks_expected_keys{ "input_port", "output_port", "task", "class", "config" };
     tesseract::common::checkForUnknownKeys(operation_config, tasks_expected_keys);
     validateSubTask(name_, operation_key, operation_config);
 
@@ -232,6 +271,30 @@ TaskComposerNodeInfo ForEachTask::runImpl(TaskComposerContext& context, Optional
   info.status_message = "Successful";
   info.return_value = 1;
   return info;
+}
+
+tesseract::common::PropertyTree ForEachTask::schema()
+{
+  using namespace tesseract::common;
+  // clang-format off
+  auto schema = PropertyTreeBuilder()
+      .attribute(property_attribute::TYPE, property_type::CONTAINER)
+      .compose(TaskComposerTask::schema(ForEachTask::ports()))
+      .container("operation").required()
+        // Validates class/config using the registered TaskComposerNodeFactory
+        // derived schema, or validates a named task's SubTaskConfig.
+        .validator(validateOperationSubTask)
+        .string("input_port").required().minimumLength(1).done()
+        .string("output_port").required().minimumLength(1).done()
+        .string("class").minimumLength(1).done()
+        .string("task").minimumLength(1).done()
+      .done()
+      .build();
+  // clang-format on
+
+  // The concrete plugin or named-task schema owns the shape of this field.
+  schema.at("operation")["config"];
+  return schema;
 }
 
 void ForEachTask::checkTaskInput(const tesseract::common::AnyPoly& input)
