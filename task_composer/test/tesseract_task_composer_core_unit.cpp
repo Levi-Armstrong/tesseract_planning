@@ -9,6 +9,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/common/unit_test_utils.h>
 #include <tesseract/common/resource_locator.h>
 #include <tesseract/common/property_tree.h>
+#include <tesseract/common/serialization.h>
 
 #include <tesseract/task_composer/task_composer_data_storage.h>
 #include <tesseract/task_composer/task_composer_context.h>
@@ -39,36 +40,223 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 using namespace tesseract::task_composer;
 
-TEST(TesseractTaskComposerCoreUnit, TaskComposerKeysTests)  // NOLINT
+namespace
 {
-  TaskComposerKeys keys;
-  EXPECT_TRUE(keys.empty());
-  keys.add("first", "I1");
-  keys.add("second", std::vector<std::string>{ "I2" });
-  EXPECT_TRUE(keys.size() == 2);
-  EXPECT_FALSE(keys.empty());
-  EXPECT_EQ(keys.get("first"), "I1");
-  EXPECT_EQ(keys.get<std::vector<std::string>>("second"), std::vector<std::string>{ "I2" });
-  EXPECT_TRUE(keys.has("first"));
-  EXPECT_TRUE(keys.has("second"));
+struct LegacyTaskComposerNodePortsArchiveFixture
+{
+  enum Type : std::uint32_t  // NOLINT(performance-enum-size)
+  {
+    SINGLE = 0,
+    MULTIPLE = 1
+  };
+
+  using ContainerType = std::unordered_map<std::string, Type>;
+  ContainerType input_required;
+  ContainerType input_optional;
+  ContainerType output_required;
+  ContainerType output_optional;
+
+  template <class Archive>
+  void serialize(Archive& ar)
+  {
+    ar(cereal::make_nvp("input_required", input_required));
+    ar(cereal::make_nvp("input_optional", input_optional));
+    ar(cereal::make_nvp("output_required", output_required));
+    ar(cereal::make_nvp("output_optional", output_optional));
+  }
+};
+}  // namespace
+
+TEST(TesseractTaskComposerCoreUnit, TaskComposerPortMapTests)  // NOLINT
+{
+  TaskComposerPortMap port_map;
+  EXPECT_TRUE(port_map.empty());
+  port_map.set("first", "I1");
+  port_map.set("second", std::vector<std::string>{ "I2" });
+  EXPECT_TRUE(port_map.size() == 2);
+  EXPECT_FALSE(port_map.empty());
+  EXPECT_EQ(port_map.single("first"), "I1");
+  EXPECT_EQ(port_map.multiple("second"), std::vector<std::string>{ "I2" });
+  EXPECT_TRUE(port_map.contains("first"));
+  EXPECT_TRUE(port_map.contains("second"));
+  EXPECT_THROW(port_map.single("second"), std::invalid_argument);
+  EXPECT_THROW(port_map.multiple("first"), std::invalid_argument);
+  EXPECT_THROW(port_map.set("", "I3"), std::invalid_argument);
+  EXPECT_THROW(port_map.set("third", ""), std::invalid_argument);
+  EXPECT_THROW(port_map.set("third", std::vector<std::string>{}), std::invalid_argument);
+  EXPECT_THROW(port_map.set("third", std::vector<std::string>{ "I3", "" }), std::invalid_argument);
   std::map<std::string, std::string> renaming;
   renaming["I1"] = "I3";
   renaming["I2"] = "I4";
-  keys.rename(renaming);
-  EXPECT_EQ(keys.get("first"), "I3");
-  EXPECT_EQ(keys.get<std::vector<std::string>>("second"), std::vector<std::string>{ "I4" });
-  keys.remove("second");
-  EXPECT_FALSE(keys.has("second"));
+  port_map.renameStorageKeys(renaming);
+  EXPECT_EQ(port_map.single("first"), "I3");
+  EXPECT_EQ(port_map.multiple("second"), std::vector<std::string>{ "I4" });
+  port_map.erase("second");
+  EXPECT_FALSE(port_map.contains("second"));
 
-  TaskComposerKeys copy{ keys };
-  EXPECT_TRUE(keys == copy);
-  EXPECT_FALSE(keys != copy);
+  TaskComposerPortMap copy{ port_map };
+  EXPECT_TRUE(port_map == copy);
+  EXPECT_FALSE(port_map != copy);
 }
 
-TEST(TesseractTaskComposerCoreUnit, TaskComposerKeysSchemaTests)  // NOLINT
+TEST(TesseractTaskComposerCoreUnit, TaskComposerNodePortsTests)  // NOLINT
+{
+  TaskComposerNodePorts ports;
+  ports.addRequiredInput("required_single")
+      .addOptionalInput("optional_multiple", TaskComposerNodePorts::Cardinality::MULTIPLE)
+      .addRequiredOutput("required_multiple", TaskComposerNodePorts::Cardinality::MULTIPLE)
+      .addOptionalOutput("optional_single");
+
+  EXPECT_THROW(ports.addRequiredInput(""), std::invalid_argument);
+  EXPECT_THROW(ports.addOptionalInput("required_single"), std::invalid_argument);
+  EXPECT_NO_THROW(ports.addRequiredOutput("required_single"));
+
+  TaskComposerPortMap inputs;
+  TaskComposerPortMap outputs;
+  EXPECT_EQ(ports.validate(inputs, outputs).size(), 3);
+
+  inputs.set("required_single", "input");
+  outputs.set("required_multiple", std::vector<std::string>{ "output1", "output2" });
+  outputs.set("required_single", "output");
+  EXPECT_TRUE(ports.validate(inputs, outputs).empty());
+
+  inputs.set("optional_multiple", "wrong_cardinality");
+  outputs.set("optional_single", std::vector<std::string>{ "wrong_cardinality" });
+  EXPECT_EQ(ports.validate(inputs, outputs).size(), 2);
+
+  inputs.erase("optional_multiple");
+  outputs.erase("optional_single");
+  inputs.set("unknown", "input");
+  EXPECT_EQ(ports.validate(inputs, outputs).size(), 1);
+  EXPECT_EQ(ports.validate(inputs, outputs).front().path(), "inputs.unknown");
+  EXPECT_THROW(ports.validateOrThrow(inputs, outputs, "TestNode"), std::runtime_error);
+}
+
+TEST(TesseractTaskComposerCoreUnit, TaskComposerNodePortsSchemaRuntimeParityTests)  // NOLINT
+{
+  TaskComposerNodePorts ports;
+  ports.addRequiredInput("required_single")
+      .addOptionalInput("optional_multiple", TaskComposerNodePorts::Cardinality::MULTIPLE)
+      .addRequiredOutput("required_multiple", TaskComposerNodePorts::Cardinality::MULTIPLE)
+      .addOptionalOutput("optional_single");
+
+  struct TestCase
+  {
+    const char* inputs;
+    const char* outputs;
+    bool valid;
+  };
+
+  const std::vector<TestCase> test_cases{
+    { "{required_single: input, optional_multiple: [input1, input2]}",
+      "{required_multiple: [output1, output2], optional_single: output}",
+      true },
+    { "{required_single: input}", "{required_multiple: [output]}", true },
+    { "{}", "{required_multiple: [output]}", false },
+    { "{required_single: input}", "{}", false },
+    { "{required_single: input, optional_multiple: input}", "{required_multiple: [output]}", false },
+    { "{required_single: input}", "{required_multiple: output}", false },
+    { "{required_single: input, unknown: input}", "{required_multiple: [output]}", false },
+    { "{required_single: input}", "{required_multiple: [output], unknown: output}", false },
+    { "{required_single: ''}", "{required_multiple: [output]}", false },
+    { "{required_single: input, optional_multiple: []}", "{required_multiple: [output]}", false },
+    { "{required_single: input, optional_multiple: [input, '']}", "{required_multiple: [output]}", false }
+  };
+
+  for (const auto& test_case : test_cases)
+  {
+    auto input_schema = ports.inputSchema();
+    auto output_schema = ports.outputSchema();
+    input_schema.mergeConfig(YAML::Load(test_case.inputs));
+    output_schema.mergeConfig(YAML::Load(test_case.outputs));
+    const bool schema_valid = input_schema.validate().empty() && output_schema.validate().empty();
+
+    bool runtime_valid{ false };
+    try
+    {
+      const auto inputs = YAML::Load(test_case.inputs).as<TaskComposerPortMap>();
+      const auto outputs = YAML::Load(test_case.outputs).as<TaskComposerPortMap>();
+      runtime_valid = ports.validate(inputs, outputs).empty();
+    }
+    catch (const std::exception&)
+    {
+      runtime_valid = false;
+    }
+
+    EXPECT_EQ(schema_valid, test_case.valid) << "inputs: " << test_case.inputs << ", outputs: " << test_case.outputs;
+    EXPECT_EQ(runtime_valid, test_case.valid) << "inputs: " << test_case.inputs << ", outputs: " << test_case.outputs;
+  }
+}
+
+TEST(TesseractTaskComposerCoreUnit, TaskComposerFixedPortMappingsAreAtomic)  // NOLINT
+{
+  test_suite::TestTask task;
+  const TaskComposerPortMap original_inputs = task.getInputPortMappings();
+  const TaskComposerPortMap original_outputs = task.getOutputPortMappings();
+
+  TaskComposerPortMap invalid_inputs;
+  invalid_inputs.set(test_suite::TestTask::INOUT_PORT1_PORT, "replacement_input");
+
+  EXPECT_THROW(task.setPortMappings(invalid_inputs, original_outputs), std::runtime_error);
+  EXPECT_EQ(task.getInputPortMappings(), original_inputs);
+  EXPECT_EQ(task.getOutputPortMappings(), original_outputs);
+}
+
+TEST(TesseractTaskComposerCoreUnit, TaskComposerPortSerializationTests)  // NOLINT
+{
+  TaskComposerPortMap mappings;
+  mappings.set("single", "input");
+  mappings.set("multiple", std::vector<std::string>{ "input1", "input2" });
+
+  const std::string mappings_xml = tesseract::common::Serialization::toArchiveStringXML(mappings);
+  EXPECT_NE(mappings_xml.find("<port_mappings"), std::string::npos);
+  EXPECT_EQ(tesseract::common::Serialization::fromArchiveStringXML<TaskComposerPortMap>(mappings_xml), mappings);
+
+  TaskComposerNodePorts ports;
+  ports.addRequiredInput("required_input")
+      .addOptionalInput("optional_input", TaskComposerNodePorts::Cardinality::MULTIPLE)
+      .addRequiredOutput("required_output", TaskComposerNodePorts::Cardinality::MULTIPLE)
+      .addOptionalOutput("optional_output");
+
+  const std::string ports_xml = tesseract::common::Serialization::toArchiveStringXML(ports);
+  EXPECT_NE(ports_xml.find("<input_required"), std::string::npos);
+  EXPECT_NE(ports_xml.find("<input_optional"), std::string::npos);
+  EXPECT_NE(ports_xml.find("<output_required"), std::string::npos);
+  EXPECT_NE(ports_xml.find("<output_optional"), std::string::npos);
+  EXPECT_EQ(tesseract::common::Serialization::fromArchiveStringXML<TaskComposerNodePorts>(ports_xml), ports);
+}
+
+TEST(TesseractTaskComposerCoreUnit, TaskComposerLegacyNodePortsSerializationTests)  // NOLINT
+{
+  LegacyTaskComposerNodePortsArchiveFixture legacy_ports;
+  legacy_ports.input_required["required_input"] = LegacyTaskComposerNodePortsArchiveFixture::SINGLE;
+  legacy_ports.input_optional["optional_input"] = LegacyTaskComposerNodePortsArchiveFixture::MULTIPLE;
+  legacy_ports.output_required["required_output"] = LegacyTaskComposerNodePortsArchiveFixture::MULTIPLE;
+  legacy_ports.output_optional["optional_output"] = LegacyTaskComposerNodePortsArchiveFixture::SINGLE;
+
+  TaskComposerNodePorts expected_ports;
+  expected_ports.addRequiredInput("required_input")
+      .addOptionalInput("optional_input", TaskComposerNodePorts::Cardinality::MULTIPLE)
+      .addRequiredOutput("required_output", TaskComposerNodePorts::Cardinality::MULTIPLE)
+      .addOptionalOutput("optional_output");
+
+  const std::string legacy_ports_xml = tesseract::common::Serialization::toArchiveStringXML(legacy_ports);
+  EXPECT_EQ(tesseract::common::Serialization::fromArchiveStringXML<TaskComposerNodePorts>(legacy_ports_xml),
+            expected_ports);
+  const std::vector<std::uint8_t> legacy_ports_binary =
+      tesseract::common::Serialization::toArchiveBinaryData(legacy_ports);
+  const auto loaded_ports =
+      tesseract::common::Serialization::fromArchiveBinaryData<TaskComposerNodePorts>(legacy_ports_binary);
+  EXPECT_EQ(loaded_ports, expected_ports);
+  EXPECT_EQ(tesseract::common::Serialization::fromArchiveBinaryData<TaskComposerNodePorts>(
+                tesseract::common::Serialization::toArchiveBinaryData(loaded_ports)),
+            expected_ports);
+}
+
+TEST(TesseractTaskComposerCoreUnit, TaskComposerPortMapSchemaTests)  // NOLINT
 {
   {
-    auto schema = YAML::convert<TaskComposerKeys>::schema();
+    auto schema = YAML::convert<TaskComposerPortMap>::schema();
     schema.mergeConfig(YAML::Load("single: input\nmultiple: [input1, input2]"));
     EXPECT_TRUE(schema.validate().empty());
 
@@ -78,7 +266,7 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerKeysSchemaTests)  // NOLINT
   }
 
   {
-    auto schema = YAML::convert<TaskComposerKeys>::schema();
+    auto schema = YAML::convert<TaskComposerPortMap>::schema();
     schema.mergeConfig(YAML::Load("invalid: { nested: value }"));
     const auto errors = schema.validate();
     EXPECT_FALSE(errors.empty());
@@ -89,7 +277,7 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerKeysSchemaTests)  // NOLINT
   }
 
   {
-    auto schema = YAML::convert<TaskComposerKeys>::schema();
+    auto schema = YAML::convert<TaskComposerPortMap>::schema();
     schema.mergeConfig(YAML::Load("invalid: [valid, { nested: value }]"));
     const auto errors = schema.validate();
     EXPECT_FALSE(errors.empty());
@@ -99,7 +287,7 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerKeysSchemaTests)  // NOLINT
   }
 
   {
-    auto schema = YAML::convert<TaskComposerKeys>::schema();
+    auto schema = YAML::convert<TaskComposerPortMap>::schema();
     schema.mergeConfig(YAML::Load("? [invalid, key]\n: value"));
     std::vector<std::string> errors;
     EXPECT_NO_THROW(errors = schema.validate());
@@ -140,11 +328,6 @@ TEST(TesseractTaskComposerCoreUnit, GraphEdgeSchemaTests)  // NOLINT
 
 TEST(TesseractTaskComposerCoreUnit, ConstructionSchemaDefaultsTests)  // NOLINT
 {
-  auto node_schema = TaskComposerNode::schema();
-  node_schema.mergeConfig(YAML::Load("{}"));
-  EXPECT_TRUE(node_schema.validate().empty());
-  EXPECT_FALSE(node_schema.at("conditional").as<bool>());
-
   auto task_schema = TaskComposerTask::schema(TaskComposerNodePorts{});
   task_schema.mergeConfig(YAML::Load("{}"));
   EXPECT_TRUE(task_schema.validate().empty());
@@ -160,11 +343,11 @@ TEST(TesseractTaskComposerCoreUnit, ConstructionSchemaDefaultsTests)  // NOLINT
   }
 
   auto has_data_schema = HasDataStorageEntryTask::schema();
-  has_data_schema.mergeConfig(YAML::Load("inputs: {keys: [input]}"));
+  has_data_schema.mergeConfig(YAML::Load("inputs: {storage_keys: [input]}"));
   EXPECT_TRUE(has_data_schema.validate().empty());
 
   auto remap_schema = RemapTask::schema();
-  remap_schema.mergeConfig(YAML::Load("inputs: {keys: [input]}\noutputs: {keys: [output]}"));
+  remap_schema.mergeConfig(YAML::Load("inputs: {storage_keys: [input]}\noutputs: {storage_keys: [output]}"));
   EXPECT_TRUE(remap_schema.validate().empty());
   EXPECT_FALSE(remap_schema.at("copy").as<bool>());
 
@@ -185,13 +368,15 @@ TEST(TesseractTaskComposerCoreUnit, NodePortSchemaTests)  // NOLINT
   const auto node_schema = RemapTask::schema();
   ASSERT_TRUE(node_schema.at("inputs").isRequired());
   ASSERT_TRUE(node_schema.at("outputs").isRequired());
-  ASSERT_TRUE(node_schema.at("inputs").at(RemapTask::INOUT_KEYS_PORT).isRequired());
-  ASSERT_TRUE(node_schema.at("outputs").at(RemapTask::INOUT_KEYS_PORT).isRequired());
-  EXPECT_EQ(node_schema.at("inputs").keys(), std::vector<std::string>{ RemapTask::INOUT_KEYS_PORT });
-  EXPECT_EQ(node_schema.at("outputs").keys(), std::vector<std::string>{ RemapTask::INOUT_KEYS_PORT });
-  EXPECT_EQ(
-      node_schema.at("inputs").at(RemapTask::INOUT_KEYS_PORT).getAttribute(property_attribute::TYPE)->as<std::string>(),
-      property_type::createList(property_type::STRING));
+  ASSERT_TRUE(node_schema.at("inputs").at(RemapTask::INOUT_STORAGE_KEYS_PORT).isRequired());
+  ASSERT_TRUE(node_schema.at("outputs").at(RemapTask::INOUT_STORAGE_KEYS_PORT).isRequired());
+  EXPECT_EQ(node_schema.at("inputs").keys(), std::vector<std::string>{ RemapTask::INOUT_STORAGE_KEYS_PORT });
+  EXPECT_EQ(node_schema.at("outputs").keys(), std::vector<std::string>{ RemapTask::INOUT_STORAGE_KEYS_PORT });
+  EXPECT_EQ(node_schema.at("inputs")
+                .at(RemapTask::INOUT_STORAGE_KEYS_PORT)
+                .getAttribute(property_attribute::TYPE)
+                ->as<std::string>(),
+            property_type::createList(property_type::STRING));
   EXPECT_EQ(RemapTaskFactory{}.schema().at("inputs").keys(), node_schema.at("inputs").keys());
 
   const auto validate = [](std::string_view config) {
@@ -200,11 +385,11 @@ TEST(TesseractTaskComposerCoreUnit, NodePortSchemaTests)  // NOLINT
     return schema.validate();
   };
 
-  EXPECT_TRUE(validate("inputs: {keys: [input]}\noutputs: {keys: [output]}").empty());
-  EXPECT_FALSE(validate("outputs: {keys: [output]}").empty());
-  EXPECT_FALSE(validate("inputs: {keys: input}\noutputs: {keys: [output]}").empty());
-  EXPECT_FALSE(validate("inputs: {keys: []}\noutputs: {keys: [output]}").empty());
-  EXPECT_FALSE(validate("inputs: {unknown: [input]}\noutputs: {keys: [output]}").empty());
+  EXPECT_TRUE(validate("inputs: {storage_keys: [input]}\noutputs: {storage_keys: [output]}").empty());
+  EXPECT_FALSE(validate("outputs: {storage_keys: [output]}").empty());
+  EXPECT_FALSE(validate("inputs: {storage_keys: input}\noutputs: {storage_keys: [output]}").empty());
+  EXPECT_FALSE(validate("inputs: {storage_keys: []}\noutputs: {storage_keys: [output]}").empty());
+  EXPECT_FALSE(validate("inputs: {unknown: [input]}\noutputs: {storage_keys: [output]}").empty());
 
   using GraphTaskFactory = TaskComposerTaskFactory<TaskComposerGraph>;
   const auto graph_schema = GraphTaskFactory{}.schema();
@@ -212,6 +397,83 @@ TEST(TesseractTaskComposerCoreUnit, NodePortSchemaTests)  // NOLINT
             property_type::createMap(REQUIRED_STRING_OR_STRING_LIST_SCHEMA_KEY));
   EXPECT_EQ(graph_schema.at("outputs").getAttribute(property_attribute::TYPE)->as<std::string>(),
             property_type::createMap(REQUIRED_STRING_OR_STRING_LIST_SCHEMA_KEY));
+}
+
+TEST(TesseractTaskComposerCoreUnit, GraphDataFlowValidationTests)  // NOLINT
+{
+  TaskComposerGraph graph("GraphDataFlowValidationTests");
+  const boost::uuids::uuid child_uuid = graph.addNode(std::make_unique<test_suite::TestTask>("Child", false));
+  graph.setTerminals({ child_uuid });
+
+  auto validity = graph.isValid();
+  EXPECT_FALSE(validity.first);
+  EXPECT_NE(validity.second.find("Child"), std::string::npos);
+  EXPECT_NE(validity.second.find("input_data"), std::string::npos);
+
+  TaskComposerPortMap graph_inputs;
+  graph_inputs.set("single", "input_data");
+  graph_inputs.set("multiple", std::vector<std::string>{ "input_data2" });
+  graph.setPortMappings(graph_inputs, {});
+  EXPECT_TRUE(graph.isValid().first);
+
+  TaskComposerPortMap invalid_outputs;
+  invalid_outputs.set("missing", "missing_output");
+  graph.setPortMappings(graph_inputs, invalid_outputs);
+  validity = graph.isValid();
+  EXPECT_FALSE(validity.first);
+  EXPECT_NE(validity.second.find("missing_output"), std::string::npos);
+
+  TaskComposerPortMap graph_outputs;
+  graph_outputs.set("single", "output_data");
+  graph_outputs.set("multiple", std::vector<std::string>{ "output_data2" });
+  graph.setPortMappings(graph_inputs, graph_outputs);
+  EXPECT_TRUE(graph.isValid().first);
+
+  TaskComposerPortMap invalid_override;
+  invalid_override.set("single", std::vector<std::string>{ "parent_input" });
+  EXPECT_THROW(graph.setOverrideInputPortMappings(invalid_override), std::runtime_error);
+
+  TaskComposerPortMap valid_override;
+  valid_override.set("single", "parent_input");
+  EXPECT_NO_THROW(graph.setOverrideInputPortMappings(valid_override));
+}
+
+TEST(TesseractTaskComposerCoreUnit, NamedTaskDataFlowValidationTests)  // NOLINT
+{
+  const std::string plugin_config = R"(
+task_composer_plugins:
+  search_paths: [/usr/local/lib]
+  search_libraries: [tesseract_task_composer_factories]
+  tasks:
+    plugins:
+      NamedTestTask:
+        class: TestTaskFactory
+        config:
+          inputs: {port1: missing_input, port2: [missing_input2]}
+          outputs: {port1: output, port2: [output2]}
+)";
+  tesseract::common::GeneralResourceLocator locator;
+  TaskComposerPluginFactory factory(plugin_config, locator);
+  const YAML::Node graph_config = YAML::Load(R"(
+nodes:
+  Child:
+    task: NamedTestTask
+edges: []
+terminals: [Child]
+)");
+
+  try
+  {
+    static_cast<void>(TaskComposerGraph("NamedDataFlowGraph", graph_config, factory));
+    FAIL() << "Expected named task data-flow validation to fail";
+  }
+  catch (const std::runtime_error& error)
+  {
+    const std::string message = error.what();
+    EXPECT_NE(message.find("NamedDataFlowGraph"), std::string::npos) << message;
+    EXPECT_NE(message.find("Child"), std::string::npos) << message;
+    EXPECT_NE(message.find("missing_input"), std::string::npos) << message;
+  }
 }
 
 TEST(TesseractTaskComposerCoreUnit, ForEachTaskSchemaTests)  // NOLINT
@@ -494,27 +756,26 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerNodeTests)  // NOLINT
   EXPECT_TRUE(node->getParentUUID().is_nil());
   EXPECT_TRUE(node->getOutboundEdges().empty());
   EXPECT_TRUE(node->getInboundEdges().empty());
-  EXPECT_TRUE(node->getInputKeys().empty());
-  EXPECT_TRUE(node->getOutputKeys().empty());
+  EXPECT_TRUE(node->getInputPortMappings().empty());
+  EXPECT_TRUE(node->getOutputPortMappings().empty());
   EXPECT_FALSE(node->isConditional());
   EXPECT_NO_THROW(node->dump(os));  // NOLINT
 
   // Setters
   std::string name{ "TaskComposerNodeTests" };
-  TaskComposerKeys input_keys;
-  input_keys.add("first", "I1");
-  input_keys.add("second", "I2");
-  TaskComposerKeys output_keys;
-  output_keys.add("first", "O1");
-  output_keys.add("second", "O2");
+  TaskComposerPortMap input_port_mappings;
+  input_port_mappings.set("first", "I1");
+  input_port_mappings.set("second", "I2");
+  TaskComposerPortMap output_port_mappings;
+  output_port_mappings.set("first", "O1");
+  output_port_mappings.set("second", "O2");
 
   node->setName(name);
-  node->setInputKeys(input_keys);
-  node->setOutputKeys(output_keys);
+  node->setPortMappings(input_port_mappings, output_port_mappings);
   node->setConditional(true);
   EXPECT_EQ(node->getName(), name);
-  EXPECT_EQ(node->getInputKeys(), input_keys);
-  EXPECT_EQ(node->getOutputKeys(), output_keys);
+  EXPECT_EQ(node->getInputPortMappings(), input_port_mappings);
+  EXPECT_EQ(node->getOutputPortMappings(), output_port_mappings);
   EXPECT_EQ(node->isConditional(), true);
   EXPECT_NO_THROW(node->dump(os));  // NOLINT
 
@@ -525,8 +786,8 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerNodeTests)  // NOLINT
         name, TaskComposerNodeType::TASK, TaskComposerNodePorts{}, config["config"]);
     EXPECT_EQ(task->getName(), name);
     EXPECT_EQ(task->getType(), TaskComposerNodeType::TASK);
-    EXPECT_TRUE(task->getInputKeys().empty());
-    EXPECT_TRUE(task->getOutputKeys().empty());
+    EXPECT_TRUE(task->getInputPortMappings().empty());
+    EXPECT_TRUE(task->getOutputPortMappings().empty());
     EXPECT_FALSE(task->isConditional());
   }
 
@@ -538,8 +799,8 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerNodeTests)  // NOLINT
         name, TaskComposerNodeType::TASK, TaskComposerNodePorts{}, config["config"]);
     EXPECT_EQ(task->getName(), name);
     EXPECT_EQ(task->getType(), TaskComposerNodeType::TASK);
-    EXPECT_TRUE(task->getInputKeys().empty());
-    EXPECT_TRUE(task->getOutputKeys().empty());
+    EXPECT_TRUE(task->getInputPortMappings().empty());
+    EXPECT_TRUE(task->getOutputPortMappings().empty());
     EXPECT_TRUE(task->isConditional());
   }
 }
@@ -559,8 +820,8 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerTaskTests)  // NOLINT
     auto task = std::make_unique<test_suite::TestTask>(name, false);
     EXPECT_EQ(task->getName(), name);
     EXPECT_FALSE(task->isConditional());
-    EXPECT_FALSE(task->getInputKeys().empty());
-    EXPECT_FALSE(task->getOutputKeys().empty());
+    EXPECT_FALSE(task->getInputPortMappings().empty());
+    EXPECT_FALSE(task->getOutputPortMappings().empty());
 
     auto data = std::make_shared<TaskComposerDataStorage>(test_data);
     auto context = std::make_shared<TaskComposerContext>("TaskComposerTaskTests", data);
@@ -581,8 +842,8 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerTaskTests)  // NOLINT
     task->return_value = 1;
     EXPECT_EQ(task->getName(), name);
     EXPECT_TRUE(task->isConditional());
-    EXPECT_FALSE(task->getInputKeys().empty());
-    EXPECT_FALSE(task->getOutputKeys().empty());
+    EXPECT_FALSE(task->getInputPortMappings().empty());
+    EXPECT_FALSE(task->getOutputPortMappings().empty());
 
     auto context = std::make_shared<TaskComposerContext>("TaskComposerTaskTests");
     EXPECT_EQ(task->run(*context), 1);
@@ -611,12 +872,12 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerTaskTests)  // NOLINT
     auto task = std::make_unique<test_suite::TestTask>(name, config["config"], factory);
     EXPECT_EQ(task->getName(), name);
     EXPECT_FALSE(task->isConditional());
-    EXPECT_EQ(task->getInputKeys().size(), 2);
-    EXPECT_EQ(task->getOutputKeys().size(), 2);
-    EXPECT_EQ(task->getInputKeys().get("port1"), "input_data");
-    EXPECT_EQ(task->getOutputKeys().get("port1"), "output_data");
-    EXPECT_EQ(task->getInputKeys().get<std::vector<std::string>>("port2"), std::vector<std::string>{ "input_data2" });
-    EXPECT_EQ(task->getOutputKeys().get<std::vector<std::string>>("port2"), std::vector<std::string>{ "output_data2" });
+    EXPECT_EQ(task->getInputPortMappings().size(), 2);
+    EXPECT_EQ(task->getOutputPortMappings().size(), 2);
+    EXPECT_EQ(task->getInputPortMappings().single("port1"), "input_data");
+    EXPECT_EQ(task->getOutputPortMappings().single("port1"), "output_data");
+    EXPECT_EQ(task->getInputPortMappings().multiple("port2"), std::vector<std::string>{ "input_data2" });
+    EXPECT_EQ(task->getOutputPortMappings().multiple("port2"), std::vector<std::string>{ "output_data2" });
 
     auto context = std::make_shared<TaskComposerContext>("TaskComposerTaskTests");
     EXPECT_EQ(task->run(*context), 0);
@@ -669,12 +930,12 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerPipelineTests)  // NOLINT
   std::string name3 = "TaskComposerPipelineTests3";
   std::string name4 = "TaskComposerPipelineTests4";
 
-  TaskComposerKeys input_keys;
-  input_keys.add("port1", "input_data");
-  input_keys.add("port2", std::vector<std::string>{ "input_data2" });
-  TaskComposerKeys output_keys;
-  output_keys.add("port1", "output_data");
-  output_keys.add("port2", std::vector<std::string>{ "output_data2" });
+  TaskComposerPortMap input_port_mappings;
+  input_port_mappings.set("port1", "input_data");
+  input_port_mappings.set("port2", std::vector<std::string>{ "input_data2" });
+  TaskComposerPortMap output_port_mappings;
+  output_port_mappings.set("port1", "output_data");
+  output_port_mappings.set("port2", std::vector<std::string>{ "output_data2" });
 
   TaskComposerDataStorage test_data;
   test_data.setData("input_data", true);
@@ -685,14 +946,10 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerPipelineTests)  // NOLINT
     auto task2 = std::make_unique<test_suite::TestTask>(name2, false);
     auto task3 = std::make_unique<test_suite::TestTask>(name3, false);
     auto task4 = std::make_unique<test_suite::TestTask>(name4, false);
-    task1->setInputKeys(input_keys);
-    task1->setOutputKeys(output_keys);
-    task2->setInputKeys(output_keys);
-    task2->setOutputKeys(output_keys);
-    task3->setInputKeys(output_keys);
-    task3->setOutputKeys(output_keys);
-    task4->setInputKeys(output_keys);
-    task4->setOutputKeys(output_keys);
+    task1->setPortMappings(input_port_mappings, output_port_mappings);
+    task2->setPortMappings(output_port_mappings, output_port_mappings);
+    task3->setPortMappings(output_port_mappings, output_port_mappings);
+    task4->setPortMappings(output_port_mappings, output_port_mappings);
     auto pipeline = std::make_unique<TaskComposerPipeline>(name);
     boost::uuids::uuid uuid1 = pipeline->addNode(std::move(task1));
     boost::uuids::uuid uuid2 = pipeline->addNode(std::move(task2));
@@ -720,14 +977,14 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerPipelineTests)  // NOLINT
     EXPECT_EQ(nodes_map.at(uuid4)->getInboundEdges().size(), 1);
     EXPECT_EQ(nodes_map.at(uuid4)->getInboundEdges().front(), uuid3);
     EXPECT_EQ(nodes_map.at(uuid4)->getOutboundEdges().size(), 0);
-    EXPECT_EQ(nodes_map.at(uuid1)->getInputKeys(), input_keys);
-    EXPECT_EQ(nodes_map.at(uuid1)->getOutputKeys(), output_keys);
-    EXPECT_EQ(nodes_map.at(uuid2)->getInputKeys(), output_keys);
-    EXPECT_EQ(nodes_map.at(uuid2)->getOutputKeys(), output_keys);
-    EXPECT_EQ(nodes_map.at(uuid3)->getInputKeys(), output_keys);
-    EXPECT_EQ(nodes_map.at(uuid3)->getOutputKeys(), output_keys);
-    EXPECT_EQ(nodes_map.at(uuid4)->getInputKeys(), output_keys);
-    EXPECT_EQ(nodes_map.at(uuid4)->getOutputKeys(), output_keys);
+    EXPECT_EQ(nodes_map.at(uuid1)->getInputPortMappings(), input_port_mappings);
+    EXPECT_EQ(nodes_map.at(uuid1)->getOutputPortMappings(), output_port_mappings);
+    EXPECT_EQ(nodes_map.at(uuid2)->getInputPortMappings(), output_port_mappings);
+    EXPECT_EQ(nodes_map.at(uuid2)->getOutputPortMappings(), output_port_mappings);
+    EXPECT_EQ(nodes_map.at(uuid3)->getInputPortMappings(), output_port_mappings);
+    EXPECT_EQ(nodes_map.at(uuid3)->getOutputPortMappings(), output_port_mappings);
+    EXPECT_EQ(nodes_map.at(uuid4)->getInputPortMappings(), output_port_mappings);
+    EXPECT_EQ(nodes_map.at(uuid4)->getOutputPortMappings(), output_port_mappings);
 
     auto data = std::make_shared<TaskComposerDataStorage>(test_data);
     auto context = std::make_shared<TaskComposerContext>("TaskComposerPipelineTests", std::move(data));
@@ -1092,7 +1349,7 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerPipelineTests)  // NOLINT
                            inputs:
                              program: input_data
                            outputs:
-                             program: output_data
+                             program: input_data
                            nodes:
                              StartTask:
                                class: StartTaskFactory
@@ -1114,8 +1371,8 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerPipelineTests)  // NOLINT
     auto task2 = pipeline->getNodeByName("DoneTask");
     EXPECT_EQ(pipeline->getNodeByName("DoestNotExist"), nullptr);
     EXPECT_EQ(pipeline->getTerminals(), std::vector<boost::uuids::uuid>({ task2->getUUID() }));
-    EXPECT_EQ(pipeline->getInputKeys().get("program"), "input_data");
-    EXPECT_EQ(pipeline->getOutputKeys().get("program"), "output_data");
+    EXPECT_EQ(pipeline->getInputPortMappings().single("program"), "input_data");
+    EXPECT_EQ(pipeline->getOutputPortMappings().single("program"), "input_data");
     EXPECT_EQ(task1->getInboundEdges().size(), 0);
     EXPECT_EQ(task1->getOutboundEdges().size(), 1);
     EXPECT_EQ(task1->getOutboundEdges().front(), task2->getUUID());
@@ -1139,7 +1396,7 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerPipelineTests)  // NOLINT
                                    inputs:
                                      program: input_data
                                    outputs:
-                                     program: output_data
+                                     program: input_data
                                    nodes:
                                      StartTask:
                                        class: StartTaskFactory
@@ -1161,7 +1418,7 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerPipelineTests)  // NOLINT
                             inputs:
                               program: input_data
                             outputs:
-                              program: output_data
+                              program: input_data
                             nodes:
                               StartTask:
                                 task: TestPipeline
@@ -1188,8 +1445,8 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerPipelineTests)  // NOLINT
     auto task3 = pipeline->getNodeByName("DoneTask");
     EXPECT_EQ(pipeline->getNodeByName("DoestNotExist"), nullptr);
     EXPECT_EQ(pipeline->getTerminals(), std::vector<boost::uuids::uuid>({ task2->getUUID(), task3->getUUID() }));
-    EXPECT_EQ(pipeline->getInputKeys().get("program"), "input_data");
-    EXPECT_EQ(pipeline->getOutputKeys().get("program"), "output_data");
+    EXPECT_EQ(pipeline->getInputPortMappings().single("program"), "input_data");
+    EXPECT_EQ(pipeline->getOutputPortMappings().single("program"), "input_data");
     EXPECT_EQ(task1->getInboundEdges().size(), 0);
     EXPECT_EQ(task1->getOutboundEdges().size(), 2);
     EXPECT_EQ(task1->getOutboundEdges().front(), task2->getUUID());
@@ -1952,9 +2209,9 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerRemapTaskTests)  // NOLINT
                            conditional: true
                            copy: true
                            inputs:
-                             keys: [test]
+                             storage_keys: [test]
                            outputs:
-                             keys: [test2])";
+                             storage_keys: [test2])";
     YAML::Node config = YAML::Load(str);
     RemapTask task("abc", config["config"], factory);
     EXPECT_EQ(task.getName(), "abc");
@@ -2032,9 +2289,9 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerRemapTaskTests)  // NOLINT
                            conditional: true
                            copy: true
                            inputs:
-                             keys: [joint_state]
+                             storage_keys: [joint_state]
                            outputs:
-                             keys: [remap_joint_state])";
+                             storage_keys: [remap_joint_state])";
     YAML::Node config = YAML::Load(str);
 
     RemapTask task("RemapTaskTest", config["config"], factory);
@@ -2067,9 +2324,9 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerRemapTaskTests)  // NOLINT
                            conditional: true
                            copy: false
                            inputs:
-                             keys: [joint_state]
+                             storage_keys: [joint_state]
                            outputs:
-                             keys: [remap_joint_state])";
+                             storage_keys: [remap_joint_state])";
     YAML::Node config = YAML::Load(str);
 
     RemapTask task("RemapTaskTest", config["config"], factory);
@@ -2106,14 +2363,14 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerRemapTaskTests)  // NOLINT
     str = R"(config:
                conditional: true
                inputs:
-                 keys: [input_data])";
+                 storage_keys: [input_data])";
     config = YAML::Load(str);
     EXPECT_ANY_THROW(std::make_unique<RemapTask>("abc", config["config"], factory));  // NOLINT
 
     str = R"(config:
                conditional: true
                outputs:
-                 keys: [output_data])";
+                 storage_keys: [output_data])";
     config = YAML::Load(str);
     EXPECT_ANY_THROW(std::make_unique<RemapTask>("abc", config["config"], factory));  // NOLINT
   }
@@ -2319,24 +2576,23 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerHasDataStorageEntryTaskTests)  /
   }
 
   {  // Construction
-    std::vector<std::string> input_keys{ "input1", "input2" };
-    HasDataStorageEntryTask task("abc", input_keys);
+    std::vector<std::string> input_storage_keys{ "input1", "input2" };
+    HasDataStorageEntryTask task("abc", input_storage_keys);
     EXPECT_EQ(task.getName(), "abc");
-    EXPECT_TRUE(task.getOutputKeys().empty());
+    EXPECT_TRUE(task.getOutputPortMappings().empty());
     EXPECT_EQ(task.isConditional(), true);
   }
 
   {  // Construction
-    std::vector<std::string> input_keys{ "input1", "input2" };
     TaskComposerPluginFactory factory;
     std::string str = R"(config:
                            conditional: true
                            inputs:
-                             keys: [input1, input2])";
+                             storage_keys: [input1, input2])";
     YAML::Node config = YAML::Load(str);
     HasDataStorageEntryTask task("abc", config["config"], factory);
     EXPECT_EQ(task.getName(), "abc");
-    EXPECT_TRUE(task.getOutputKeys().empty());
+    EXPECT_TRUE(task.getOutputPortMappings().empty());
     EXPECT_EQ(task.isConditional(), true);
   }
 
@@ -2349,7 +2605,7 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerHasDataStorageEntryTaskTests)  /
     std::string str = R"(config:
                            conditional: true
                            outputs:
-                             keys: [output1, output2])";
+                             storage_keys: [output1, output2])";
     YAML::Node config = YAML::Load(str);
     EXPECT_ANY_THROW(std::make_unique<HasDataStorageEntryTask>("abc", config["config"], factory));  // NOLINT
   }
@@ -2366,8 +2622,8 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerHasDataStorageEntryTaskTests)  /
     auto context = std::make_shared<TaskComposerContext>("TaskComposerHasDataStorageEntryTaskTests",
                                                          std::make_unique<TaskComposerDataStorage>());
 
-    std::vector<std::string> input_keys{ "input1", "input2" };
-    HasDataStorageEntryTask task("test_run", input_keys);
+    std::vector<std::string> input_storage_keys{ "input1", "input2" };
+    HasDataStorageEntryTask task("test_run", input_storage_keys);
     EXPECT_EQ(task.run(*context), 0);
     auto node_info = context->task_infos->getInfo(task.getUUID());
     if (!node_info.has_value())
@@ -2377,7 +2633,7 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerHasDataStorageEntryTaskTests)  /
     EXPECT_EQ(node_info->color, "red");
     EXPECT_EQ(node_info->return_value, 0);
     EXPECT_EQ(node_info->status_code, 0);
-    EXPECT_EQ(node_info->status_message, "Missing input key: input1");
+    EXPECT_EQ(node_info->status_message, "Missing input storage key: input1");
     EXPECT_EQ(node_info->aborted, false);
     EXPECT_EQ(context->isAborted(), false);
     EXPECT_EQ(context->isSuccessful(), true);
@@ -2390,8 +2646,8 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerHasDataStorageEntryTaskTests)  /
     auto context =
         std::make_shared<TaskComposerContext>("TaskComposerHasDataStorageEntryTaskTests", std::move(data_storage));
 
-    std::vector<std::string> input_keys{ "input1", "input2" };
-    HasDataStorageEntryTask task("test_run", input_keys);
+    std::vector<std::string> input_storage_keys{ "input1", "input2" };
+    HasDataStorageEntryTask task("test_run", input_storage_keys);
     EXPECT_EQ(task.run(*context), 0);
     auto node_info = context->task_infos->getInfo(task.getUUID());
     if (!node_info.has_value())
@@ -2401,7 +2657,7 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerHasDataStorageEntryTaskTests)  /
     EXPECT_EQ(node_info->color, "red");
     EXPECT_EQ(node_info->return_value, 0);
     EXPECT_EQ(node_info->status_code, 0);
-    EXPECT_EQ(node_info->status_message, "Missing input key: input2");
+    EXPECT_EQ(node_info->status_message, "Missing input storage key: input2");
     EXPECT_EQ(node_info->aborted, false);
     EXPECT_EQ(context->isAborted(), false);
     EXPECT_EQ(context->isSuccessful(), true);
@@ -2415,8 +2671,8 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerHasDataStorageEntryTaskTests)  /
     auto context =
         std::make_shared<TaskComposerContext>("TaskComposerHasDataStorageEntryTaskTests", std::move(data_storage));
 
-    std::vector<std::string> input_keys{ "input1", "input2" };
-    HasDataStorageEntryTask task("test_run", input_keys);
+    std::vector<std::string> input_storage_keys{ "input1", "input2" };
+    HasDataStorageEntryTask task("test_run", input_storage_keys);
     EXPECT_EQ(task.run(*context), 1);
     auto node_info = context->task_infos->getInfo(task.getUUID());
     if (!node_info.has_value())
@@ -2515,10 +2771,10 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerForEachTaskTests)  // NOLINT
     ForEachTask task("abc", config["config"], factory);
     EXPECT_EQ(task.getName(), "abc");
     EXPECT_EQ(task.isConditional(), true);
-    EXPECT_EQ(task.getInputKeys().size(), 1);
-    EXPECT_EQ(task.getInputKeys().get(ForEachTask::INOUT_PORT), "input_data");
-    EXPECT_EQ(task.getOutputKeys().size(), 1);
-    EXPECT_EQ(task.getOutputKeys().get(ForEachTask::INOUT_PORT), "output_data");
+    EXPECT_EQ(task.getInputPortMappings().size(), 1);
+    EXPECT_EQ(task.getInputPortMappings().single(ForEachTask::INOUT_PORT), "input_data");
+    EXPECT_EQ(task.getOutputPortMappings().size(), 1);
+    EXPECT_EQ(task.getOutputPortMappings().single(ForEachTask::INOUT_PORT), "output_data");
     EXPECT_EQ(task.getOutboundEdges().size(), 0);
     EXPECT_EQ(task.getInboundEdges().size(), 0);
   }
@@ -2806,6 +3062,12 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerServerTests)  // NOLINT
                                class: PipelineTaskFactory
                                config:
                                  conditional: true
+                                 inputs:
+                                   port1: input_data
+                                   port2: [input_data2]
+                                 outputs:
+                                   port1: output_data
+                                   port2: [output_data2]
                                  nodes:
                                    StartTask:
                                      class: StartTaskFactory
@@ -2840,6 +3102,12 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerServerTests)  // NOLINT
                                class: GraphTaskFactory
                                config:
                                  conditional: false
+                                 inputs:
+                                   port1: input_data
+                                   port2: [input_data2]
+                                 outputs:
+                                   port1: output_data
+                                   port2: [output_data2]
                                  nodes:
                                    StartTask:
                                      class: StartTaskFactory
@@ -2891,6 +3159,8 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerServerTests)  // NOLINT
 
     {  // Run method using TaskComposerContext
       auto data_storage = std::make_unique<TaskComposerDataStorage>();
+      data_storage->setData("input_data", true);
+      data_storage->setData("input_data2", std::vector<tesseract::common::AnyPoly>{ false });
       auto future = server.run("TestPipeline", std::move(data_storage), false, "TaskflowExecutor");
       future->wait();
 
@@ -2902,6 +3172,8 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerServerTests)  // NOLINT
 
     {  // Run method using Pipeline
       auto data_storage = std::make_unique<TaskComposerDataStorage>();
+      data_storage->setData("input_data", true);
+      data_storage->setData("input_data2", std::vector<tesseract::common::AnyPoly>{ false });
       const auto& pipeline = server.getTask("TestPipeline");
       auto future = server.run(pipeline, std::move(data_storage), false, "TaskflowExecutor");
       future->wait();
@@ -2973,6 +3245,12 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerPipelineWithGraphChild)  // NOLI
                                class: PipelineTaskFactory
                                config:
                                  conditional: true
+                                 inputs:
+                                   port1: input_data
+                                   port2: [input_data2]
+                                 outputs:
+                                   port1: output_data
+                                   port2: [output_data2]
                                  nodes:
                                    StartTask:
                                      class: StartTaskFactory
@@ -3000,6 +3278,12 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerPipelineWithGraphChild)  // NOLI
                                class: GraphTaskFactory
                                config:
                                  conditional: false
+                                 inputs:
+                                   port1: input_data
+                                   port2: [input_data2]
+                                 outputs:
+                                   port1: output_data
+                                   port2: [output_data2]
                                  nodes:
                                    StartTask:
                                      class: StartTaskFactory
@@ -3037,9 +3321,26 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerPipelineWithGraphChild)  // NOLI
   // Run method using TaskComposerContext
   const auto& pipeline = server.getTask("TestPipeline");
   auto data_storage = std::make_unique<TaskComposerDataStorage>();
+  data_storage->setData("input_data", true);
+  data_storage->setData("input_data2", std::vector<tesseract::common::AnyPoly>{ false });
   auto future = server.run(pipeline, std::move(data_storage), false, "TaskflowExecutor");
   future->wait();
 
+  const auto graph_node = std::dynamic_pointer_cast<const TaskComposerGraph>(
+      static_cast<const TaskComposerGraph&>(pipeline).getNodeByName("TestConditionalGraphTask"));
+  ASSERT_NE(graph_node, nullptr);
+  const auto test_task = graph_node->getNodeByName("TestTask");
+  ASSERT_NE(test_task, nullptr);
+  EXPECT_EQ(test_task->getParentUUID(), graph_node->getUUID());
+  const auto graph_storage_any = future->context->data_storage->getData(graph_node->getUUIDString());
+  ASSERT_FALSE(graph_storage_any.isNull());
+  const auto& graph_storage = graph_storage_any.as<TaskComposerDataStorage::Ptr>();
+  EXPECT_TRUE(graph_storage->hasKey("output_data"));
+  EXPECT_TRUE(graph_storage->hasKey("output_data2"));
+
+  const auto abort_info = future->context->task_infos->getInfo(future->context->task_infos->getAbortingNode());
+  const std::string abort_message = abort_info.has_value() ? abort_info->status_message : "No aborting node";
+  SCOPED_TRACE(abort_message);
   EXPECT_EQ(future->context->isAborted(), false);
   EXPECT_EQ(future->context->isSuccessful(), true);
   EXPECT_EQ(future->context->task_infos->getInfoMap().size(), 7);

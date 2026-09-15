@@ -15,7 +15,7 @@ class TESSERACT_TASK_COMPOSER_PLANNING_NODES_EXPORT FormatAsResultTask : public 
 {
 public:
   // Requried
-  static const std::string INOUT_PROGRAMS_PORT;
+  inline static constexpr char INOUT_PROGRAMS_PORT[] = "programs";
 
   using Ptr = std::shared_ptr<FormatAsResultTask>;
   using ConstPtr = std::shared_ptr<const FormatAsResultTask>;
@@ -24,8 +24,8 @@ public:
 
   FormatAsResultTask();
   explicit FormatAsResultTask(std::string name,
-                              const std::vector<std::string>& input_keys,
-                              const std::vector<std::string>& output_keys,
+                              const std::vector<std::string>& input_storage_keys,
+                              const std::vector<std::string>& output_storage_keys,
                               bool is_conditional = true);
   explicit FormatAsResultTask(std::string name,
                               const YAML::Node& config,
@@ -33,7 +33,7 @@ public:
   ~FormatAsResultTask() override = default;
 
   static tesseract::common::PropertyTree schema() { return TaskComposerTask::schema(ports()); }
-  static TaskComposerNodePorts ports();
+  static const TaskComposerNodePorts& ports();
 
 private:
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,

@@ -43,7 +43,7 @@ public:
   using ConstUPtr = std::unique_ptr<const RemapTask>;
 
   // Requried
-  static const std::string INOUT_KEYS_PORT;
+  inline static constexpr char INOUT_STORAGE_KEYS_PORT[] = "storage_keys";
 
   RemapTask();
   explicit RemapTask(std::string name,
@@ -55,7 +55,7 @@ public:
 
   static tesseract::common::PropertyTree schema();
 
-  static TaskComposerNodePorts ports();
+  static const TaskComposerNodePorts& ports();
 
 private:
   bool copy_{ false };

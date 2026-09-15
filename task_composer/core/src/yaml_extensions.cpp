@@ -68,7 +68,7 @@ tesseract::common::PropertyTree createRequiredStringOrStringListSchema()
 
 namespace YAML
 {
-tesseract::common::PropertyTree convert<tesseract::task_composer::TaskComposerKeys>::schema()
+tesseract::common::PropertyTree convert<tesseract::task_composer::TaskComposerPortMap>::schema()
 {
   using namespace tesseract::common;
   return PropertyTreeBuilder()
@@ -82,5 +82,5 @@ TESSERACT_SCHEMA_REGISTER(tesseract::task_composer::StringOrStringList,
                           tesseract::task_composer::createStringOrStringListSchema);
 TESSERACT_SCHEMA_REGISTER(tesseract::task_composer::RequiredStringOrStringList,
                           tesseract::task_composer::createRequiredStringOrStringListSchema);
-TESSERACT_SCHEMA_REGISTER(tesseract::task_composer::TaskComposerKeys,
-                          YAML::convert<tesseract::task_composer::TaskComposerKeys>::schema);
+TESSERACT_SCHEMA_REGISTER(tesseract::task_composer::TaskComposerPortMap,
+                          YAML::convert<tesseract::task_composer::TaskComposerPortMap>::schema);

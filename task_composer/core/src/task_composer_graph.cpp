@@ -34,7 +34,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <tesseract/common/stopwatch.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
-#include <tesseract/task_composer/task_composer_keys.h>
+#include <tesseract/task_composer/task_composer_port_map.h>
 #include <tesseract/task_composer/task_composer_context.h>
 #include <tesseract/task_composer/task_composer_future.h>
 #include <tesseract/task_composer/task_composer_executor.h>
@@ -48,11 +48,59 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/common/property_tree.h>
 
 #include <set>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
 namespace tesseract::task_composer
 {
+namespace
+{
+void validateOverrides(const TaskComposerPortMap& mappings,
+                       const TaskComposerPortMap& overrides,
+                       std::string_view direction)
+{
+  for (const auto& [port, override_mapping] : overrides.data())
+  {
+    if (!mappings.contains(port))
+      throw std::runtime_error("Graph " + std::string(direction) + " override references undeclared port '" + port +
+                               "'");
+
+    const auto& mapping = mappings.at(port);
+    if (std::holds_alternative<std::string>(mapping) != std::holds_alternative<std::string>(override_mapping))
+      throw std::runtime_error("Graph " + std::string(direction) + " override for port '" + port +
+                               "' has different cardinality than its mapping");
+
+    if (std::holds_alternative<std::vector<std::string>>(mapping) &&
+        std::get<std::vector<std::string>>(mapping).size() !=
+            std::get<std::vector<std::string>>(override_mapping).size())
+    {
+      throw std::runtime_error("Graph " + std::string(direction) + " override for port '" + port +
+                               "' must contain the same number of keys as its mapping");
+    }
+  }
+}
+
+void collectMappingKeys(const TaskComposerPortMap& mappings,
+                        const TaskComposerPortMap* overrides,
+                        std::set<std::string>& keys)
+{
+  for (const auto& [port, mapping] : mappings.data())
+  {
+    const auto& effective_mapping = overrides != nullptr && overrides->contains(port) ? overrides->at(port) : mapping;
+    if (std::holds_alternative<std::string>(effective_mapping))
+    {
+      keys.insert(std::get<std::string>(effective_mapping));
+    }
+    else
+    {
+      const auto& multiple = std::get<std::vector<std::string>>(effective_mapping);
+      keys.insert(multiple.begin(), multiple.end());
+    }
+  }
+}
+}  // namespace
+
 TaskComposerGraph::TaskComposerGraph(std::string name, boost::uuids::uuid parent_uuid)
   : TaskComposerGraph(std::move(name), TaskComposerNodeType::GRAPH, false)
 {
@@ -61,7 +109,7 @@ TaskComposerGraph::TaskComposerGraph(std::string name, boost::uuids::uuid parent
 }
 
 TaskComposerGraph::TaskComposerGraph(std::string name, TaskComposerNodeType type, bool conditional)
-  : TaskComposerNode(std::move(name), type, TaskComposerNodePorts{}, conditional)
+  : TaskComposerNode(std::move(name), type, DynamicPortsTag{}, conditional)
 {
 }
 
@@ -78,7 +126,7 @@ TaskComposerGraph::TaskComposerGraph(std::string name,
                                      TaskComposerNodeType type,
                                      const YAML::Node& config,
                                      const TaskComposerPluginFactory& plugin_factory)
-  : TaskComposerNode(std::move(name), type, TaskComposerNodePorts{}, config)
+  : TaskComposerNode(std::move(name), type, DynamicPortsTag{}, config)
 {
   static const std::set<std::string> graph_expected_keys{ "namespace", "conditional", "inputs",   "outputs",
                                                           "nodes",     "edges",       "terminals" };
@@ -172,6 +220,10 @@ TaskComposerGraph::TaskComposerGraph(std::string name,
 TaskComposerNodeInfo TaskComposerGraph::runImpl(TaskComposerContext& context,
                                                 OptionalTaskComposerExecutor executor) const
 {
+  const auto validity = isValid();
+  if (!validity.first)
+    throw std::runtime_error(validity.second);
+
   if (terminals_.empty())
     throw std::runtime_error("TaskComposerGraph, with name '" + name_ + "' does not have terminals!");
 
@@ -181,21 +233,9 @@ TaskComposerNodeInfo TaskComposerGraph::runImpl(TaskComposerContext& context,
   if (!executor.has_value())
     throw std::runtime_error("TaskComposerGraph, the optional executor is null!");
 
-  // Create local data storage for graph
-  TaskComposerDataStorage::Ptr parent_data_storage = getDataStorage(context);
-
-  // Create a new data storage and copy the input data relevant to this graph.
-  // Store the new data storage for access by child nodes of this graph
-  auto local_data_storage = std::make_shared<TaskComposerDataStorage>(uuid_str_);
-  local_data_storage->copyAsInputData(*parent_data_storage, input_keys_, override_input_keys_);
-  context.data_storage->setData(uuid_str_, local_data_storage);
-
   // Run
   TaskComposerFuture::UPtr future = executor.value().get().run(*this, context.shared_from_this());
   future->wait();
-
-  // Copy output data to parent data storage
-  parent_data_storage->copyAsOutputData(*local_data_storage, output_keys_, override_output_keys_);
 
   TaskComposerNodeInfo info(*this);
   auto info_map = context.task_infos->getInfoMap();
@@ -215,8 +255,8 @@ TaskComposerNodeInfo TaskComposerGraph::runImpl(TaskComposerContext& context,
     if (node_info.has_value())
     {
       stopwatch.stop();
-      info.input_keys = input_keys_;
-      info.output_keys = output_keys_;
+      info.input_port_mappings = input_port_mappings_;
+      info.output_port_mappings = output_port_mappings_;
       info.return_value = static_cast<int>(i);
       info.color = node_info->color;
       info.status_code = node_info->status_code;
@@ -371,22 +411,48 @@ boost::uuids::uuid TaskComposerGraph::getAbortTerminal() const
 
 int TaskComposerGraph::getAbortTerminalIndex() const { return abort_terminal_; }
 
-void TaskComposerGraph::setOverrideInputKeys(TaskComposerKeys override_input_keys)
+void TaskComposerGraph::setPortMappings(TaskComposerPortMap input_port_mappings,
+                                        TaskComposerPortMap output_port_mappings)
 {
-  override_input_keys_ = std::move(override_input_keys);
+  validateOverrides(input_port_mappings, override_input_port_mappings_, "input");
+  validateOverrides(output_port_mappings, override_output_port_mappings_, "output");
+  TaskComposerNode::setPortMappings(std::move(input_port_mappings), std::move(output_port_mappings));
 }
 
-void TaskComposerGraph::setOverrideOutputKeys(TaskComposerKeys override_output_keys)
+void TaskComposerGraph::setOverrideInputPortMappings(TaskComposerPortMap override_input_port_mappings)
 {
-  override_output_keys_ = std::move(override_output_keys);
+  validateOverrides(input_port_mappings_, override_input_port_mappings, "input");
+  override_input_port_mappings_ = std::move(override_input_port_mappings);
 }
 
-const TaskComposerKeys& TaskComposerGraph::getOverrideInputKeys() const { return override_input_keys_; }
+void TaskComposerGraph::setOverrideOutputPortMappings(TaskComposerPortMap override_output_port_mappings)
+{
+  validateOverrides(output_port_mappings_, override_output_port_mappings, "output");
+  override_output_port_mappings_ = std::move(override_output_port_mappings);
+}
 
-const TaskComposerKeys& TaskComposerGraph::getOverrideOutputKeys() const { return override_output_keys_; }
+const TaskComposerPortMap& TaskComposerGraph::getOverrideInputPortMappings() const
+{
+  return override_input_port_mappings_;
+}
+
+const TaskComposerPortMap& TaskComposerGraph::getOverrideOutputPortMappings() const
+{
+  return override_output_port_mappings_;
+}
 
 std::pair<bool, std::string> TaskComposerGraph::isValid() const
 {
+  try
+  {
+    validateOverrides(input_port_mappings_, override_input_port_mappings_, "input");
+    validateOverrides(output_port_mappings_, override_output_port_mappings_, "output");
+  }
+  catch (const std::exception& exception)
+  {
+    return { false, "Task Composer Graph '" + name_ + "': " + exception.what() };
+  }
+
   int root_node_cnt{ 0 };
   for (const auto& pair : nodes_)
   {
@@ -404,6 +470,98 @@ std::pair<bool, std::string> TaskComposerGraph::isValid() const
       return { false, "Task Composer Graph '" + name_ + "' has terminal node with outbound edges" };
   }
 
+  return validateDataFlow();
+}
+
+std::pair<bool, std::string> TaskComposerGraph::validateDataFlow() const
+{
+  struct NodeDataFlow
+  {
+    std::set<std::string> inputs;
+    std::set<std::string> outputs;
+    std::vector<boost::uuids::uuid> predecessors;
+  };
+
+  std::set<std::string> graph_inputs;
+  collectMappingKeys(input_port_mappings_, nullptr, graph_inputs);
+
+  std::map<boost::uuids::uuid, NodeDataFlow> data_flow;
+  for (const auto& [uuid, node] : nodes_)
+  {
+    const TaskComposerPortMap* input_overrides{ nullptr };
+    const TaskComposerPortMap* output_overrides{ nullptr };
+    if (node->getType() == TaskComposerNodeType::GRAPH || node->getType() == TaskComposerNodeType::PIPELINE)
+    {
+      const auto& graph_node = static_cast<const TaskComposerGraph&>(*node);
+      try
+      {
+        validateOverrides(graph_node.getInputPortMappings(), graph_node.getOverrideInputPortMappings(), "input");
+        validateOverrides(graph_node.getOutputPortMappings(), graph_node.getOverrideOutputPortMappings(), "output");
+      }
+      catch (const std::exception& exception)
+      {
+        return { false, "Task Composer Graph '" + name_ + "' child '" + node->getName() + "': " + exception.what() };
+      }
+      input_overrides = &graph_node.getOverrideInputPortMappings();
+      output_overrides = &graph_node.getOverrideOutputPortMappings();
+    }
+
+    auto& node_data = data_flow[uuid];
+    collectMappingKeys(node->getInputPortMappings(), input_overrides, node_data.inputs);
+    collectMappingKeys(node->getOutputPortMappings(), output_overrides, node_data.outputs);
+    node_data.predecessors = node->getInboundEdges();
+  }
+
+  std::set<std::string> produced_keys = graph_inputs;
+  for (const auto& [uuid, node_data] : data_flow)
+  {
+    static_cast<void>(uuid);
+    produced_keys.insert(node_data.outputs.begin(), node_data.outputs.end());
+  }
+
+  for (const auto& [uuid, node] : nodes_)
+  {
+    std::set<std::string> available_keys = graph_inputs;
+    std::set<boost::uuids::uuid> visited;
+    std::vector<boost::uuids::uuid> pending = data_flow.at(uuid).predecessors;
+    while (!pending.empty())
+    {
+      const boost::uuids::uuid predecessor_uuid = pending.back();
+      pending.pop_back();
+      if (!visited.insert(predecessor_uuid).second)
+        continue;
+
+      const auto predecessor = data_flow.find(predecessor_uuid);
+      if (predecessor == data_flow.end())
+        continue;
+
+      available_keys.insert(predecessor->second.outputs.begin(), predecessor->second.outputs.end());
+      pending.insert(pending.end(), predecessor->second.predecessors.begin(), predecessor->second.predecessors.end());
+    }
+
+    for (const auto& input_key : data_flow.at(uuid).inputs)
+    {
+      if (available_keys.find(input_key) == available_keys.end())
+      {
+        return { false,
+                 "Task Composer Graph '" + name_ + "' child '" + node->getName() + "' input key '" + input_key +
+                     "' is not supplied by a graph input or predecessor output" };
+      }
+    }
+  }
+
+  std::set<std::string> graph_outputs;
+  collectMappingKeys(output_port_mappings_, nullptr, graph_outputs);
+  for (const auto& output_key : graph_outputs)
+  {
+    if (produced_keys.find(output_key) == produced_keys.end())
+    {
+      return { false,
+               "Task Composer Graph '" + name_ + "' output key '" + output_key +
+                   "' is not supplied by a graph input or child output" };
+    }
+  }
+
   return { true, "Task Composer Graph Valid" };
 }
 
@@ -418,14 +576,14 @@ std::string TaskComposerGraph::dump(std::ostream& os,
   const std::string tmp = toString(uuid_);
   os << "subgraph cluster_" << tmp << " {\n color=black;\n nojustify=true label = \"" << name_
      << "\\nUUID: " << uuid_str_ << "\\l";
-  os << "Inputs:\\l" << input_keys_;
-  os << "Outputs:\\l" << output_keys_;
+  os << "Inputs:\\l" << input_port_mappings_;
+  os << "Outputs:\\l" << output_port_mappings_;
 
-  if (!override_input_keys_.empty())
-    os << "Override Inputs:\\l" << override_input_keys_;
+  if (!override_input_port_mappings_.empty())
+    os << "Override Inputs:\\l" << override_input_port_mappings_;
 
-  if (!override_output_keys_.empty())
-    os << "Override Outputs:\\l" << override_output_keys_;
+  if (!override_output_port_mappings_.empty())
+    os << "Override Outputs:\\l" << override_output_port_mappings_;
 
   os << "Abort Terminal: " << abort_terminal_ << "\\l";
   os << "Conditional: " << ((conditional_) ? "True" : "False") << "\\l";
@@ -450,21 +608,21 @@ std::string TaskComposerGraph::dump(std::ostream& os,
       auto it = results_map.find(graph_node.getUUID());
       std::string color = (it != results_map.end() && it->second.color != "white") ? it->second.color : "blue";
       const std::string tmp = toString(graph_node.uuid_, "node_");
-      const TaskComposerKeys& input_keys = graph_node.getInputKeys();
-      const TaskComposerKeys& output_keys = graph_node.getOutputKeys();
-      const TaskComposerKeys& override_input_keys = graph_node.getOverrideInputKeys();
-      const TaskComposerKeys& override_output_keys = graph_node.getOverrideOutputKeys();
+      const TaskComposerPortMap& input_port_mappings = graph_node.getInputPortMappings();
+      const TaskComposerPortMap& output_port_mappings = graph_node.getOutputPortMappings();
+      const TaskComposerPortMap& override_input_port_mappings = graph_node.getOverrideInputPortMappings();
+      const TaskComposerPortMap& override_output_port_mappings = graph_node.getOverrideOutputPortMappings();
       os << "\n"
          << tmp << " [shape=box3d, nojustify=true label=\"Subgraph: " << graph_node.name_
          << "\\nUUID: " << graph_node.uuid_str_ << "\\l";
-      os << "Inputs:\\l" << input_keys;
-      os << "Outputs:\\l" << output_keys;
+      os << "Inputs:\\l" << input_port_mappings;
+      os << "Outputs:\\l" << output_port_mappings;
 
-      if (!override_input_keys.empty())
-        os << "Override Inputs:\\l" << override_input_keys;
+      if (!override_input_port_mappings.empty())
+        os << "Override Inputs:\\l" << override_input_port_mappings;
 
-      if (!override_output_keys.empty())
-        os << "Override Outputs:\\l" << override_output_keys;
+      if (!override_output_port_mappings.empty())
+        os << "Override Outputs:\\l" << override_output_port_mappings;
 
       os << "Abort Terminal: " << graph_node.abort_terminal_ << "\\l";
       os << "Conditional: " << ((node->isConditional()) ? "True" : "False") << "\\l";
@@ -841,14 +999,15 @@ tesseract::common::PropertyTree TaskComposerGraph::schema() { return graphSchema
 
 tesseract::common::PropertyTree TaskComposerGraph::graphSchema(bool allow_conditional)
 {
-  auto schema = createGraphSchema(TaskComposerNode::schema(), allow_conditional);
-  schema.at("inputs").setAttribute(
-      tesseract::common::property_attribute::TYPE,
-      tesseract::common::property_type::createMap(REQUIRED_STRING_OR_STRING_LIST_SCHEMA_KEY));
-  schema.at("outputs").setAttribute(
-      tesseract::common::property_attribute::TYPE,
-      tesseract::common::property_type::createMap(REQUIRED_STRING_OR_STRING_LIST_SCHEMA_KEY));
-  return schema;
+  using namespace tesseract::common;
+  auto node_schema = TaskComposerNode::commonSchema();
+  node_schema["inputs"].setAttribute(property_attribute::TYPE,
+                                     property_type::createMap(REQUIRED_STRING_OR_STRING_LIST_SCHEMA_KEY));
+  node_schema["inputs"].addValidator(validateCustomType);
+  node_schema["outputs"].setAttribute(property_attribute::TYPE,
+                                      property_type::createMap(REQUIRED_STRING_OR_STRING_LIST_SCHEMA_KEY));
+  node_schema["outputs"].addValidator(validateCustomType);
+  return createGraphSchema(node_schema, allow_conditional);
 }
 
 }  // namespace tesseract::task_composer

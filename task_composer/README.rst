@@ -36,13 +36,22 @@ When adding a task-composer plugin:
 * Build each task schema from ``TaskComposerTask::schema(ports())`` so required and optional port names and their
   cardinality are part of the task's schema. Tasks without additional configuration fields may return that schema
   directly.
+* Define ``ports()`` as a const-reference accessor to one function-local immutable ``TaskComposerNodePorts`` contract.
+  Use ``addRequiredInput()``, ``addOptionalInput()``, ``addRequiredOutput()``, and ``addOptionalOutput()`` to define it.
+  The same contract drives both schema generation and runtime mapping validation.
+* Configure a task's complete mapping atomically with ``setPortMappings()``. ``TaskComposerPortMap`` uses explicit
+  ``set()``, ``contains()``, ``single()``, ``multiple()``, and ``erase()`` operations for logical-port to data-key
+  mappings.
+* Treat fixed tasks and dynamic containers differently: fixed tasks publish a contract, including an empty contract for
+  portless tasks, while Graph and Pipeline mappings remain configuration-defined and are validated after their child
+  nodes and named subtasks are resolved.
 * Register both the concrete factory schema and its derived-type relationship to ``TaskComposerNodeFactory`` or
   ``TaskComposerExecutorFactory``.
 * Register schemas for custom nested configuration types referenced by the plugin schema.
 * Extend the registry-completeness and focused construction-schema tests.
 
 This contract covers plugin construction configuration, including strict task-specific port names, required ports, and
-single-versus-multiple key cardinality. Runtime profile payloads remain a separate concern.
+single-versus-multiple mapping cardinality. Runtime profile payloads remain a separate concern.
 
 .. note:: 
     

@@ -35,9 +35,9 @@ class TESSERACT_TASK_COMPOSER_PLANNING_NODES_EXPORT KinematicLimitsCheckTask : p
 {
 public:
   // Requried
-  static const std::string INPUT_PROGRAM_PORT;
-  static const std::string INPUT_ENVIRONMENT_PORT;
-  static const std::string INPUT_PROFILES_PORT;
+  inline static constexpr char INPUT_PROGRAM_PORT[] = "program";
+  inline static constexpr char INPUT_ENVIRONMENT_PORT[] = "environment";
+  inline static constexpr char INPUT_PROFILES_PORT[] = "profiles";
 
   using Ptr = std::shared_ptr<KinematicLimitsCheckTask>;
   using ConstPtr = std::shared_ptr<const KinematicLimitsCheckTask>;
@@ -63,7 +63,7 @@ public:
   KinematicLimitsCheckTask& operator=(KinematicLimitsCheckTask&&) = delete;
 
   static tesseract::common::PropertyTree schema() { return TaskComposerTask::schema(ports()); }
-  static TaskComposerNodePorts ports();
+  static const TaskComposerNodePorts& ports();
 
 protected:
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,

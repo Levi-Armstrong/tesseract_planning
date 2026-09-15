@@ -313,8 +313,8 @@ operation:
   class: RemapTaskFactory
   config:
     copy: true
-    inputs: {keys: [input]}
-    outputs: {keys: [output]}
+    inputs: {storage_keys: [input]}
+    outputs: {storage_keys: [output]}
 )"));
   EXPECT_TRUE(schema.validate().empty());
 
@@ -338,8 +338,8 @@ operation:
   output_port: keys
   class: RemapTaskFactory
   config:
-    inputs: {keys: [input]}
-    outputs: {keys: [output]}
+    inputs: {storage_keys: [input]}
+    outputs: {storage_keys: [output]}
     unsupported: true
 )"));
   EXPECT_FALSE(invalid_config_schema.validate().empty());

@@ -41,7 +41,7 @@ class TESSERACT_TASK_COMPOSER_NODES_EXPORT ForEachTask : public TaskComposerTask
 {
 public:
   // Requried
-  static const std::string INOUT_PORT;
+  inline static constexpr char INOUT_PORT[] = "container";
 
   struct TaskFactoryResults
   {
@@ -67,7 +67,7 @@ public:
   /** @brief Return the schema for constructing a ForEachTask from YAML. */
   static tesseract::common::PropertyTree schema();
 
-  static TaskComposerNodePorts ports();
+  static const TaskComposerNodePorts& ports();
 
 private:
   TaskFactory task_factory_;

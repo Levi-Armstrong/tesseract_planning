@@ -24,7 +24,7 @@
 
 #include <tesseract/task_composer/yaml_utils.h>
 #include <tesseract/task_composer/yaml_extensions.h>
-#include <tesseract/task_composer/task_composer_keys.h>
+#include <tesseract/task_composer/task_composer_port_map.h>
 #include <tesseract/task_composer/task_composer_node.h>
 #include <tesseract/task_composer/task_composer_graph.h>
 #include <tesseract/task_composer/task_composer_plugin_factory.h>
@@ -50,22 +50,22 @@ void loadSubTaskConfig(TaskComposerNode& node, const YAML::Node& config)
   if (YAML::Node n = config["abort_terminal"])
     graph_node.setTerminalTriggerAbortByIndex(n.as<int>());
 
-  if (YAML::Node override_keys = config["override"])
+  if (YAML::Node override_config = config["override"])
   {
-    if (YAML::Node n = override_keys["inputs"])
+    if (YAML::Node n = override_config["inputs"])
     {
       if (!n.IsMap())
         throw std::runtime_error("YAML entry 'override' inputs must be a map type");
 
-      graph_node.setOverrideInputKeys(n.as<TaskComposerKeys>());
+      graph_node.setOverrideInputPortMappings(n.as<TaskComposerPortMap>());
     }
 
-    if (YAML::Node n = override_keys["outputs"])
+    if (YAML::Node n = override_config["outputs"])
     {
       if (!n.IsMap())
         throw std::runtime_error("YAML entry 'override' outputs must be a map type");
 
-      graph_node.setOverrideOutputKeys(n.as<TaskComposerKeys>());
+      graph_node.setOverrideOutputPortMappings(n.as<TaskComposerPortMap>());
     }
   }
 }
@@ -145,9 +145,9 @@ tesseract::common::PropertyTree subTaskConfigSchema()
       .boolean("conditional").done()
       .int32("abort_terminal").done()
       .container("override")
-        .customType("inputs", "tesseract::task_composer::TaskComposerKeys")
+        .customType("inputs", "tesseract::task_composer::TaskComposerPortMap")
             .validator(validateCustomType).done()
-        .customType("outputs", "tesseract::task_composer::TaskComposerKeys")
+        .customType("outputs", "tesseract::task_composer::TaskComposerPortMap")
             .validator(validateCustomType).done()
       .done()
       .build();

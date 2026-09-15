@@ -46,7 +46,11 @@ public:
   ~StartTask() override = default;
 
   static tesseract::common::PropertyTree schema() { return TaskComposerTask::schema(ports()); }
-  static TaskComposerNodePorts ports() { return {}; }
+  static const TaskComposerNodePorts& ports()
+  {
+    static const TaskComposerNodePorts ports;
+    return ports;
+  }
 
 private:
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,

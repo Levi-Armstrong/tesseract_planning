@@ -51,9 +51,9 @@ class MotionPlannerTask : public TaskComposerTask
 {
 public:
   // Requried
-  static const std::string INOUT_PROGRAM_PORT;
-  static const std::string INPUT_ENVIRONMENT_PORT;
-  static const std::string INPUT_PROFILES_PORT;
+  inline static constexpr char INOUT_PROGRAM_PORT[] = "program";
+  inline static constexpr char INPUT_ENVIRONMENT_PORT[] = "environment";
+  inline static constexpr char INPUT_PROFILES_PORT[] = "profiles";
 
   MotionPlannerTask() : TaskComposerTask("MotionPlannerTask", MotionPlannerTask<MotionPlannerType>::ports(), true) {}
   explicit MotionPlannerTask(std::string name,  // NOLINT(performance-unnecessary-value-param)
@@ -67,11 +67,11 @@ public:
     , planner_(std::make_shared<MotionPlannerType>(ns_))
     , format_result_as_input_(format_result_as_input)
   {
-    input_keys_.add(INOUT_PROGRAM_PORT, std::move(input_program_key));
-    input_keys_.add(INPUT_ENVIRONMENT_PORT, std::move(input_environment_key));
-    input_keys_.add(INPUT_PROFILES_PORT, std::move(input_profiles_key));
-    output_keys_.add(INOUT_PROGRAM_PORT, std::move(output_program_key));
-    validatePorts();
+    input_port_mappings_.set(INOUT_PROGRAM_PORT, std::move(input_program_key));
+    input_port_mappings_.set(INPUT_ENVIRONMENT_PORT, std::move(input_environment_key));
+    input_port_mappings_.set(INPUT_PROFILES_PORT, std::move(input_profiles_key));
+    output_port_mappings_.set(INOUT_PROGRAM_PORT, std::move(output_program_key));
+    setPortMappings(input_port_mappings_, output_port_mappings_);
   }
 
   explicit MotionPlannerTask(std::string name,  // NOLINT(performance-unnecessary-value-param)
@@ -110,14 +110,17 @@ protected:
   bool format_result_as_input_{ true };
 
 public:
-  static TaskComposerNodePorts ports()
+  static const TaskComposerNodePorts& ports()
   {
-    TaskComposerNodePorts ports;
-    ports.input_required["program"] = TaskComposerNodePorts::SINGLE;
-    ports.input_required["environment"] = TaskComposerNodePorts::SINGLE;
-    ports.input_required["profiles"] = TaskComposerNodePorts::SINGLE;
+    static const TaskComposerNodePorts ports = []() {
+      TaskComposerNodePorts ports;
+      ports.addRequiredInput("program");
+      ports.addRequiredInput("environment");
+      ports.addRequiredInput("profiles");
 
-    ports.output_required["program"] = TaskComposerNodePorts::SINGLE;
+      ports.addRequiredOutput("program");
+      return ports;
+    }();
     return ports;
   }
 
@@ -136,7 +139,8 @@ protected:
     if (env_poly.getType() != std::type_index(typeid(std::shared_ptr<const tesseract::environment::Environment>)))
     {
       info.status_code = 0;
-      info.status_message = "Input data '" + input_keys_.get(INPUT_ENVIRONMENT_PORT) + "' is not correct type";
+      info.status_message =
+          "Input data '" + input_port_mappings_.single(INPUT_ENVIRONMENT_PORT) + "' is not correct type";
       CONSOLE_BRIDGE_logError("%s", info.status_message.c_str());
       info.return_value = 0;
       return info;
@@ -199,7 +203,7 @@ protected:
 
     // If the output key is not the same as the input key the output data should be assigned the input data for error
     // branching
-    if (output_keys_.get(INOUT_PROGRAM_PORT) != input_keys_.get(INOUT_PROGRAM_PORT))
+    if (output_port_mappings_.single(INOUT_PROGRAM_PORT) != input_port_mappings_.single(INOUT_PROGRAM_PORT))
       setData(context, INOUT_PROGRAM_PORT, original_input_data_poly);
 
     info.status_message = response.message;
@@ -208,15 +212,6 @@ protected:
 };
 
 // Requried
-template <typename MotionPlannerType>
-const std::string MotionPlannerTask<MotionPlannerType>::INOUT_PROGRAM_PORT = "program";
-
-template <typename MotionPlannerType>
-const std::string MotionPlannerTask<MotionPlannerType>::INPUT_ENVIRONMENT_PORT = "environment";
-
-template <typename MotionPlannerType>
-const std::string MotionPlannerTask<MotionPlannerType>::INPUT_PROFILES_PORT = "profiles";
-
 }  // namespace tesseract::task_composer
 
 #endif  // TESSERACT_TASK_COMPOSER_MOTION_PLANNER_TASK_HPP

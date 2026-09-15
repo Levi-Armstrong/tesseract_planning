@@ -43,9 +43,9 @@ class TESSERACT_TASK_COMPOSER_PLANNING_NODES_EXPORT FixStateBoundsTask : public 
 {
 public:
   // Requried
-  static const std::string INOUT_PROGRAM_PORT;
-  static const std::string INPUT_ENVIRONMENT_PORT;
-  static const std::string INPUT_PROFILES_PORT;
+  inline static constexpr char INOUT_PROGRAM_PORT[] = "program";
+  inline static constexpr char INPUT_ENVIRONMENT_PORT[] = "environment";
+  inline static constexpr char INPUT_PROFILES_PORT[] = "profiles";
 
   using Ptr = std::shared_ptr<FixStateBoundsTask>;
   using ConstPtr = std::shared_ptr<const FixStateBoundsTask>;
@@ -69,7 +69,7 @@ public:
   FixStateBoundsTask& operator=(FixStateBoundsTask&&) = delete;
 
   static tesseract::common::PropertyTree schema() { return TaskComposerTask::schema(ports()); }
-  static TaskComposerNodePorts ports();
+  static const TaskComposerNodePorts& ports();
 
 private:
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,

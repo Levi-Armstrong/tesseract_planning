@@ -15,7 +15,7 @@ class TESSERACT_TASK_COMPOSER_NODES_EXPORT HasDataStorageEntryTask : public Task
 {
 public:
   // Requried
-  static const std::string INPUT_KEYS_PORT;
+  inline static constexpr char INPUT_STORAGE_KEYS_PORT[] = "storage_keys";
 
   using Ptr = std::shared_ptr<HasDataStorageEntryTask>;
   using ConstPtr = std::shared_ptr<const HasDataStorageEntryTask>;
@@ -24,7 +24,7 @@ public:
 
   HasDataStorageEntryTask();
   explicit HasDataStorageEntryTask(std::string name,
-                                   const std::vector<std::string>& input_keys,
+                                   const std::vector<std::string>& input_storage_keys,
                                    bool is_conditional = true);
   explicit HasDataStorageEntryTask(std::string name,
                                    const YAML::Node& config,
@@ -32,7 +32,7 @@ public:
   ~HasDataStorageEntryTask() override = default;
 
   static tesseract::common::PropertyTree schema() { return TaskComposerTask::schema(ports()); }
-  static TaskComposerNodePorts ports();
+  static const TaskComposerNodePorts& ports();
 
 private:
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,

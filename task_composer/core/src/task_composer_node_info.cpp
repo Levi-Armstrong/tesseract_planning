@@ -44,8 +44,8 @@ TaskComposerNodeInfo::TaskComposerNodeInfo(const TaskComposerNode& node)
   , conditional(node.conditional_)
   , inbound_edges(node.inbound_edges_)
   , outbound_edges(node.outbound_edges_)
-  , input_keys(node.input_keys_)
-  , output_keys(node.output_keys_)
+  , input_port_mappings(node.input_port_mappings_)
+  , output_port_mappings(node.output_port_mappings_)
   , triggers_abort(node.trigger_abort_)
 {
   if (type == TaskComposerNodeType::GRAPH || type == TaskComposerNodeType::PIPELINE)
@@ -79,8 +79,8 @@ bool TaskComposerNodeInfo::operator==(const TaskComposerNodeInfo& rhs) const
   equal &= tesseract::common::almostEqualRelativeAndAbs(elapsed_time, rhs.elapsed_time, max_diff);
   equal &= tesseract::common::isIdentical(inbound_edges, rhs.inbound_edges, false);
   equal &= tesseract::common::isIdentical(outbound_edges, rhs.outbound_edges, true);
-  equal &= input_keys == rhs.input_keys;
-  equal &= output_keys == rhs.output_keys;
+  equal &= input_port_mappings == rhs.input_port_mappings;
+  equal &= output_port_mappings == rhs.output_port_mappings;
   equal &= terminals == rhs.terminals;
   equal &= triggers_abort == rhs.triggers_abort;
   equal &= color == rhs.color;

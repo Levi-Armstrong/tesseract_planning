@@ -36,9 +36,9 @@ class TESSERACT_TASK_COMPOSER_PLANNING_NODES_EXPORT UpdateEndStateTask : public 
 {
 public:
   // Requried
-  static const std::string INPUT_CURRENT_PROGRAM_PORT;
-  static const std::string INPUT_NEXT_PROGRAM_PORT;
-  static const std::string OUTPUT_PROGRAM_PORT;
+  inline static constexpr char INPUT_CURRENT_PROGRAM_PORT[] = "current_program";
+  inline static constexpr char INPUT_NEXT_PROGRAM_PORT[] = "next_program";
+  inline static constexpr char OUTPUT_PROGRAM_PORT[] = "program";
 
   using Ptr = std::shared_ptr<UpdateEndStateTask>;
   using ConstPtr = std::shared_ptr<const UpdateEndStateTask>;
@@ -58,7 +58,7 @@ public:
   ~UpdateEndStateTask() override = default;
 
   static tesseract::common::PropertyTree schema() { return TaskComposerTask::schema(ports()); }
-  static TaskComposerNodePorts ports();
+  static const TaskComposerNodePorts& ports();
 
 private:
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,
