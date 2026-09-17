@@ -61,8 +61,7 @@ void validateOperationSubTask(const tesseract::common::PropertyTree& node,
   auto schema = subTaskSchema();
   try
   {
-    schema.mergeConfig(config);
-    for (std::string error : schema.validate())
+    for (std::string error : schema.applyConfig(config))
     {
       const std::size_t separator = error.find(':');
       if (separator != std::string::npos)
@@ -91,56 +90,39 @@ ForEachTask::ForEachTask(std::string name, const YAML::Node& config, const TaskC
   : TaskComposerTask(std::move(name), ForEachTask::ports(), config)
 {
   static const std::string operation_key{ "operation" };
-  if (YAML::Node operation_config = config[operation_key])
-  {
-    static const std::set<std::string> tasks_expected_keys{ "input_port", "output_port", "task", "class", "config" };
-    tesseract::common::checkForUnknownKeys(operation_config, tasks_expected_keys);
-    validateSubTask(name_, operation_key, operation_config);
+  const YAML::Node operation_config = config[operation_key];
+  task_input_port_ = operation_config["input_port"].as<std::string>();
+  task_output_port_ = operation_config["output_port"].as<std::string>();
 
-    if (YAML::Node n = operation_config["input_port"])
-      task_input_port_ = n.as<std::string>();
+  task_factory_ = [operation_config, input_port = task_input_port_, output_port = task_output_port_, &plugin_factory](
+                      const std::string& parent_name, const std::string& name, std::size_t index) {
+    ForEachTask::TaskFactoryResults tr;
+    tr.node = loadSubTask(parent_name, name, operation_config, plugin_factory);
+    tr.node->setConditional(false);
+    tr.input_key = tr.node->getInputPortMappings().single(input_port) + std::to_string(index);
+    tr.output_key = tr.node->getOutputPortMappings().single(output_port) + std::to_string(index);
+
+    if (tr.node->getType() == TaskComposerNodeType::TASK)
+    {
+      TaskComposerPortMap input_port_mappings = tr.node->getInputPortMappings();
+      TaskComposerPortMap output_port_mappings = tr.node->getOutputPortMappings();
+      input_port_mappings.set(input_port, tr.input_key);
+      output_port_mappings.set(output_port, tr.output_key);
+      tr.node->setPortMappings(std::move(input_port_mappings), std::move(output_port_mappings));
+    }
     else
-      throw std::runtime_error("ForEachTask, missing 'input_port' entry");
+    {
+      auto& graph_node = static_cast<TaskComposerGraph&>(*tr.node);
+      TaskComposerPortMap override_input_port_mappings;
+      TaskComposerPortMap override_output_port_mappings;
+      override_input_port_mappings.set(input_port, tr.input_key);
+      override_output_port_mappings.set(output_port, tr.output_key);
+      graph_node.setOverrideInputPortMappings(override_input_port_mappings);
+      graph_node.setOverrideOutputPortMappings(override_output_port_mappings);
+    }
 
-    if (YAML::Node n = operation_config["output_port"])
-      task_output_port_ = n.as<std::string>();
-    else
-      throw std::runtime_error("ForEachTask, missing 'output_port' entry");
-
-    task_factory_ = [operation_config, input_port = task_input_port_, output_port = task_output_port_, &plugin_factory](
-                        const std::string& parent_name, const std::string& name, std::size_t index) {
-      ForEachTask::TaskFactoryResults tr;
-      tr.node = loadSubTask(parent_name, name, operation_config, plugin_factory);
-      tr.node->setConditional(false);
-      tr.input_key = tr.node->getInputPortMappings().single(input_port) + std::to_string(index);
-      tr.output_key = tr.node->getOutputPortMappings().single(output_port) + std::to_string(index);
-
-      if (tr.node->getType() == TaskComposerNodeType::TASK)
-      {
-        TaskComposerPortMap input_port_mappings = tr.node->getInputPortMappings();
-        TaskComposerPortMap output_port_mappings = tr.node->getOutputPortMappings();
-        input_port_mappings.set(input_port, tr.input_key);
-        output_port_mappings.set(output_port, tr.output_key);
-        tr.node->setPortMappings(std::move(input_port_mappings), std::move(output_port_mappings));
-      }
-      else
-      {
-        auto& graph_node = static_cast<TaskComposerGraph&>(*tr.node);
-        TaskComposerPortMap override_input_port_mappings;
-        TaskComposerPortMap override_output_port_mappings;
-        override_input_port_mappings.set(input_port, tr.input_key);
-        override_output_port_mappings.set(output_port, tr.output_key);
-        graph_node.setOverrideInputPortMappings(override_input_port_mappings);
-        graph_node.setOverrideOutputPortMappings(override_output_port_mappings);
-      }
-
-      return tr;
-    };
-  }
-  else
-  {
-    throw std::runtime_error("ForEachTask: missing 'sub_task' entry");
-  }
+    return tr;
+  };
 }
 
 const TaskComposerNodePorts& ForEachTask::ports()

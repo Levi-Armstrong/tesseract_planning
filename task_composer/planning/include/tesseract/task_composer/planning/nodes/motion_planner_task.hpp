@@ -96,13 +96,13 @@ public:
   static tesseract::common::PropertyTree schema()
   {
     using namespace tesseract::common;
+    // clang-format off
     return PropertyTreeBuilder()
         .attribute(property_attribute::TYPE, property_type::CONTAINER)
         .compose(TaskComposerTask::schema(MotionPlannerTask<MotionPlannerType>::ports()))
-        .boolean("format_result_as_input")
-        .defaultVal(true)
-        .done()
+        .boolean("format_result_as_input").defaultVal(true).done()
         .build();
+    // clang-format on
   }
 
 protected:

@@ -109,39 +109,20 @@ RasterOnlyMotionTask::RasterOnlyMotionTask(std::string name,
                                            const TaskComposerPluginFactory& plugin_factory)
   : TaskComposerTask(std::move(name), RasterOnlyMotionTask::ports(), config)
 {
-  static const std::set<std::string> tasks_expected_keys{ "task", "class", "config", "override" };
   static const std::string raster_key{ "raster" };
   static const std::string transition_key{ "transition" };
 
-  if (YAML::Node raster_config = config[raster_key])
-  {
-    tesseract::common::checkForUnknownKeys(raster_config, tasks_expected_keys);
-    validateSubTask(name_, raster_key, raster_config);
+  const YAML::Node raster_config = config[raster_key];
+  raster_task_factory_ = [raster_config,
+                          &plugin_factory](const std::string& parent_name, const std::string& name, std::size_t index) {
+    return createTask(raster_config, parent_name, name, plugin_factory, index);
+  };
 
-    raster_task_factory_ =
-        [raster_config, &plugin_factory](const std::string& parent_name, const std::string& name, std::size_t index) {
-          return createTask(raster_config, parent_name, name, plugin_factory, index);
-        };
-  }
-  else
-  {
-    throw std::runtime_error("RasterOnlyMotionTask: missing 'raster' entry");
-  }
-
-  if (YAML::Node transition_config = config[transition_key])
-  {
-    tesseract::common::checkForUnknownKeys(transition_config, tasks_expected_keys);
-    validateSubTask(name_, transition_key, transition_config);
-
-    transition_task_factory_ = [transition_config, &plugin_factory](
-                                   const std::string& parent_name, const std::string& name, std::size_t index) {
-      return createTask(transition_config, parent_name, name, plugin_factory, index);
-    };
-  }
-  else
-  {
-    throw std::runtime_error("RasterOnlyMotionTask: missing 'transition' entry");
-  }
+  const YAML::Node transition_config = config[transition_key];
+  transition_task_factory_ =
+      [transition_config, &plugin_factory](const std::string& parent_name, const std::string& name, std::size_t index) {
+        return createTask(transition_config, parent_name, name, plugin_factory, index);
+      };
 }
 
 const TaskComposerNodePorts& RasterOnlyMotionTask::ports()

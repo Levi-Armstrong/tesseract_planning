@@ -31,30 +31,16 @@ namespace tesseract::task_composer
 {
 namespace
 {
-void validateStringOrStringList(const tesseract::common::PropertyTree& node,
-                                const std::string& path,
-                                std::vector<std::string>& errors)
-{
-  const YAML::Node& value = node.getValue();
-  if (value.IsScalar())
-    return;
-
-  if (!value.IsSequence())
-  {
-    errors.push_back(path + ": expected a string or a list of strings");
-    return;
-  }
-
-  for (std::size_t i = 0; i < value.size(); ++i)
-  {
-    if (!value[i].IsScalar())
-      errors.push_back(path + "[" + std::to_string(i) + "]: expected a string");
-  }
-}
-
 tesseract::common::PropertyTree createStringOrStringListSchema()
 {
-  return tesseract::common::PropertyTreeBuilder().validator(validateStringOrStringList).build();
+  using namespace tesseract::common;
+  // clang-format off
+  return PropertyTreeBuilder()
+      .oneOf()
+        .string("single").done()
+        .customType("multiple", property_type::createList(property_type::STRING)).done()
+      .build();
+  // clang-format on
 }
 
 tesseract::common::PropertyTree createRequiredStringOrStringListSchema()
@@ -71,10 +57,11 @@ namespace YAML
 tesseract::common::PropertyTree convert<tesseract::task_composer::TaskComposerPortMap>::schema()
 {
   using namespace tesseract::common;
+  // clang-format off
   return PropertyTreeBuilder()
-      .attribute(property_attribute::TYPE,
-                 property_type::createMap(tesseract::task_composer::STRING_OR_STRING_LIST_SCHEMA_KEY))
+      .attribute(property_attribute::TYPE, property_type::createMap(tesseract::task_composer::STRING_OR_STRING_LIST_SCHEMA_KEY))
       .build();
+  // clang-format on
 }
 }  // namespace YAML
 

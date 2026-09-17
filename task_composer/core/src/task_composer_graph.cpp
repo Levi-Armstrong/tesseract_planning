@@ -128,51 +128,27 @@ TaskComposerGraph::TaskComposerGraph(std::string name,
                                      const TaskComposerPluginFactory& plugin_factory)
   : TaskComposerNode(std::move(name), type, DynamicPortsTag{}, config)
 {
-  static const std::set<std::string> graph_expected_keys{ "namespace", "conditional", "inputs",   "outputs",
-                                                          "nodes",     "edges",       "terminals" };
-  tesseract::common::checkForUnknownKeys(config, graph_expected_keys);
-
   std::unordered_map<std::string, boost::uuids::uuid> node_uuids;
   YAML::Node nodes = config["nodes"];
-  if (!nodes.IsMap())
-    throw std::runtime_error("Task Composer Graph '" + name_ + "' 'nodes' entry is not a map");
 
   for (auto node_it = nodes.begin(); node_it != nodes.end(); ++node_it)
   {
-    static const std::set<std::string> nodes_expected_keys{ "class", "task", "config" };
-    tesseract::common::checkForUnknownKeys(node_it->second, nodes_expected_keys);
-
     const auto node_name = node_it->first.as<std::string>();
     node_uuids[node_name] = addNode(loadSubTask(name_, node_name, node_it->second, plugin_factory));
   }
 
   YAML::Node edges = config["edges"];
-  if (!edges.IsSequence())
-    throw std::runtime_error("Task Composer Graph '" + name_ + "' 'edges' entry is not a sequence");
-
   for (auto edge_it = edges.begin(); edge_it != edges.end(); ++edge_it)
   {
     const YAML::Node& edge = *edge_it;
 
-    std::string source;
+    const auto source = edge["source"].as<std::string>();
     std::vector<std::string> destinations;
-    if (YAML::Node n = edge["source"])
-      source = n.as<std::string>();
+    const YAML::Node destination_config = edge["destinations"];
+    if (destination_config.IsSequence())
+      destinations = destination_config.as<std::vector<std::string>>();
     else
-      throw std::runtime_error("Task Composer Graph '" + name_ + "' edge is missing 'source' entry");
-
-    if (YAML::Node n = edge["destinations"])
-    {
-      if (n.IsSequence())
-        destinations = n.as<std::vector<std::string>>();
-      else if (n.IsScalar())
-        destinations.push_back(n.as<std::string>());
-      else
-        throw std::runtime_error("Task Composer Graph '" + name_ +
-                                 "' entry 'destinations' must be a scalar or sequence");
-    }
-    else
-      throw std::runtime_error("Task Composer Graph '" + name_ + "' edge is missing 'destinations' entry");
+      destinations.push_back(destination_config.as<std::string>());
 
     auto source_it = node_uuids.find(source);
     if (source_it == node_uuids.end())
@@ -193,23 +169,16 @@ TaskComposerGraph::TaskComposerGraph(std::string name,
     addEdges(source_it->second, destination_uuids);
   }
 
-  if (YAML::Node n = config["terminals"])
+  auto terminals = config["terminals"].as<std::vector<std::string>>();
+  terminals_.clear();
+  terminals_.reserve(terminals.size());
+  for (const auto& terminal : terminals)
   {
-    auto terminals = n.as<std::vector<std::string>>();
-    terminals_.clear();
-    terminals_.reserve(terminals.size());
-    for (const auto& terminal : terminals)
-    {
-      auto terminal_it = node_uuids.find(terminal);
-      if (terminal_it == node_uuids.end())
-        throw std::runtime_error("Task Composer Graph '" + name_ + "' failed to find terminal '" + terminal + "'");
+    auto terminal_it = node_uuids.find(terminal);
+    if (terminal_it == node_uuids.end())
+      throw std::runtime_error("Task Composer Graph '" + name_ + "' failed to find terminal '" + terminal + "'");
 
-      terminals_.push_back(terminal_it->second);
-    }
-  }
-  else
-  {
-    throw std::runtime_error("Task Composer Graph '" + name_ + "' is missing 'terminals' entry");
+    terminals_.push_back(terminal_it->second);
   }
 
   auto is_valid = TaskComposerGraph::isValid();

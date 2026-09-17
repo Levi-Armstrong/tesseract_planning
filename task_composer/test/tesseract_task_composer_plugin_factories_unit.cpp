@@ -287,9 +287,11 @@ TEST(TesseractTaskComposerFactoryUnit, MissingRequiredGraphInputThrows)  // NOLI
   ASSERT_FALSE(inputs["environment"]);
 
   auto schema = tesseract::common::SchemaRegistry::instance()->get("PipelineTaskFactory");
-  schema.mergeConfig(
-      config[tesseract::common::TaskComposerPluginInfo::CONFIG_KEY]["tasks"]["plugins"]["DescartesFTask"]["config"]);
-  EXPECT_FALSE(schema.validate().empty());
+  EXPECT_FALSE(
+      schema
+          .applyConfig(config[tesseract::common::TaskComposerPluginInfo::CONFIG_KEY]["tasks"]["plugins"]["DescartesFTas"
+                                                                                                         "k"]["config"])
+          .empty());
 
   EXPECT_THROW(TaskComposerPluginFactory(config, locator), std::runtime_error);
 }
@@ -304,7 +306,8 @@ TEST(TesseractTaskComposerFactoryUnit, ForEachTaskFactorySchema)  // NOLINT
   EXPECT_TRUE(registry->isDerivedFrom(TASK_COMPOSER_NODE_FACTORY_SCHEMA_KEY, "ForEachTaskFactory"));
 
   auto schema = registry->get("ForEachTaskFactory");
-  schema.mergeConfig(YAML::Load(R"(
+  EXPECT_TRUE(schema
+                  .applyConfig(YAML::Load(R"(
 inputs: {container: input_data}
 outputs: {container: output_data}
 operation:
@@ -315,22 +318,24 @@ operation:
     copy: true
     inputs: {storage_keys: [input]}
     outputs: {storage_keys: [output]}
-)"));
-  EXPECT_TRUE(schema.validate().empty());
+)"))
+                  .empty());
 
   auto invalid_schema = registry->get("ForEachTaskFactory");
-  invalid_schema.mergeConfig(YAML::Load(R"(
+  EXPECT_FALSE(invalid_schema
+                   .applyConfig(YAML::Load(R"(
 inputs: {container: input_data}
 outputs: {container: output_data}
 operation:
   input_port: program
   output_port: program
   class: DoesNotExistFactory
-)"));
-  EXPECT_FALSE(invalid_schema.validate().empty());
+)"))
+                   .empty());
 
   auto invalid_config_schema = registry->get("ForEachTaskFactory");
-  invalid_config_schema.mergeConfig(YAML::Load(R"(
+  EXPECT_FALSE(invalid_config_schema
+                   .applyConfig(YAML::Load(R"(
 inputs: {container: input_data}
 outputs: {container: output_data}
 operation:
@@ -341,8 +346,8 @@ operation:
     inputs: {storage_keys: [input]}
     outputs: {storage_keys: [output]}
     unsupported: true
-)"));
-  EXPECT_FALSE(invalid_config_schema.validate().empty());
+)"))
+                   .empty());
 }
 
 TEST(TesseractTaskComposerFactoryUnit, FailedYamlReloadPreservesFactoryState)  // NOLINT

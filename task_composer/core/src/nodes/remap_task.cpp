@@ -111,12 +111,12 @@ TaskComposerNodeInfo RemapTask::runImpl(TaskComposerContext& context, OptionalTa
 tesseract::common::PropertyTree RemapTask::schema()
 {
   using namespace tesseract::common;
+  // clang-format off
   return PropertyTreeBuilder()
       .attribute(property_attribute::TYPE, property_type::CONTAINER)
       .compose(TaskComposerTask::schema(RemapTask::ports()))
-      .boolean("copy")
-      .defaultVal(false)
-      .done()
+      .boolean("copy").defaultVal(false).done()
       .build();
+  // clang-format on
 }
 }  // namespace tesseract::task_composer

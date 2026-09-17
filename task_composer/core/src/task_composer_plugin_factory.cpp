@@ -54,11 +54,34 @@ tesseract::common::PropertyTree TaskComposerExecutorFactory::schema() const
   return tesseract::common::PropertyTreeBuilder().build();
 }
 
+std::unique_ptr<TaskComposerExecutor> TaskComposerExecutorFactory::create(const std::string& name,
+                                                                          const YAML::Node& config) const
+{
+  auto validated_config = schema();
+  auto errors = validated_config.applyConfig(config);
+  if (!errors.empty())
+    throw tesseract::common::PropertyTreeValidationError(std::move(errors));
+
+  return createImpl(name, validated_config);
+}
+
 std::string TaskComposerNodeFactory::getSection() { return "TaskNode"; }
 
 tesseract::common::PropertyTree TaskComposerNodeFactory::schema() const
 {
   return tesseract::common::PropertyTreeBuilder().build();
+}
+
+std::unique_ptr<TaskComposerNode> TaskComposerNodeFactory::create(const std::string& name,
+                                                                  const YAML::Node& config,
+                                                                  const TaskComposerPluginFactory& plugin_factory) const
+{
+  auto validated_config = schema();
+  auto errors = validated_config.applyConfig(config);
+  if (!errors.empty())
+    throw tesseract::common::PropertyTreeValidationError(std::move(errors));
+
+  return createImpl(name, validated_config, plugin_factory);
 }
 
 struct TaskComposerPluginFactory::Implementation
@@ -146,8 +169,7 @@ void TaskComposerPluginFactory::loadConfig(YAML::Node config)
     // Stage 1 validates only the metadata required to discover plugin schemas.
     auto discovery_schema = YAML::convert<tesseract::common::PluginDiscoveryInfo>::schema();
     YAML::Node plugin_info_for_discovery_validation = YAML::Clone(plugin_info_for_decode);
-    discovery_schema.mergeConfig(plugin_info_for_discovery_validation, true);
-    auto discovery_errors = discovery_schema.validate(true);
+    auto discovery_errors = discovery_schema.applyConfig(plugin_info_for_discovery_validation, true);
     if (!discovery_errors.empty())
     {
       std::string error_msg = "TaskComposerPluginFactory: Plugin discovery validation failed:\n";
@@ -175,8 +197,7 @@ void TaskComposerPluginFactory::loadConfig(YAML::Node config)
     auto schema = YAML::convert<tesseract::common::TaskComposerPluginInfo>::schema();
     auto config_tree = schema;
     YAML::Node plugin_info_for_validation = YAML::Clone(plugin_info_for_decode);
-    config_tree.mergeConfig(plugin_info_for_validation, false);
-    auto errors = config_tree.validate(false);
+    auto errors = config_tree.applyConfig(plugin_info_for_validation, false);
     if (!errors.empty())
     {
       std::string error_msg = "TaskComposerPluginFactory: Configuration validation failed:\n";

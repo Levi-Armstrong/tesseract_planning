@@ -108,55 +108,27 @@ RasterMotionTask::RasterMotionTask(std::string name,
                                    const TaskComposerPluginFactory& plugin_factory)
   : TaskComposerTask(std::move(name), RasterMotionTask::ports(), config)
 {
-  static const std::set<std::string> tasks_expected_keys{ "task", "class", "config", "override" };
   static const std::string freespace_key{ "freespace" };
   static const std::string raster_key{ "raster" };
   static const std::string transition_key{ "transition" };
 
-  if (YAML::Node freespace_config = config[freespace_key])
-  {
-    tesseract::common::checkForUnknownKeys(freespace_config, tasks_expected_keys);
-    validateSubTask(name_, freespace_key, freespace_config);
+  const YAML::Node freespace_config = config[freespace_key];
+  freespace_task_factory_ =
+      [freespace_config, &plugin_factory](const std::string& parent_name, const std::string& name, std::size_t index) {
+        return createTask(freespace_config, parent_name, name, plugin_factory, index);
+      };
 
-    freespace_task_factory_ = [freespace_config, &plugin_factory](
-                                  const std::string& parent_name, const std::string& name, std::size_t index) {
-      return createTask(freespace_config, parent_name, name, plugin_factory, index);
-    };
-  }
-  else
-  {
-    throw std::runtime_error("RasterMotionTask: missing 'freespace' entry");
-  }
+  const YAML::Node raster_config = config[raster_key];
+  raster_task_factory_ = [raster_config,
+                          &plugin_factory](const std::string& parent_name, const std::string& name, std::size_t index) {
+    return createTask(raster_config, parent_name, name, plugin_factory, index);
+  };
 
-  if (YAML::Node raster_config = config[raster_key])
-  {
-    tesseract::common::checkForUnknownKeys(raster_config, tasks_expected_keys);
-    validateSubTask(name_, raster_key, raster_config);
-
-    raster_task_factory_ =
-        [raster_config, &plugin_factory](const std::string& parent_name, const std::string& name, std::size_t index) {
-          return createTask(raster_config, parent_name, name, plugin_factory, index);
-        };
-  }
-  else
-  {
-    throw std::runtime_error("RasterMotionTask: missing 'raster' entry");
-  }
-
-  if (YAML::Node transition_config = config[transition_key])
-  {
-    tesseract::common::checkForUnknownKeys(transition_config, tasks_expected_keys);
-    validateSubTask(name_, transition_key, transition_config);
-
-    transition_task_factory_ = [transition_config, &plugin_factory](
-                                   const std::string& parent_name, const std::string& name, std::size_t index) {
-      return createTask(transition_config, parent_name, name, plugin_factory, index);
-    };
-  }
-  else
-  {
-    throw std::runtime_error("RasterMotionTask: missing 'transition' entry");
-  }
+  const YAML::Node transition_config = config[transition_key];
+  transition_task_factory_ =
+      [transition_config, &plugin_factory](const std::string& parent_name, const std::string& name, std::size_t index) {
+        return createTask(transition_config, parent_name, name, plugin_factory, index);
+      };
 }
 
 const TaskComposerNodePorts& RasterMotionTask::ports()

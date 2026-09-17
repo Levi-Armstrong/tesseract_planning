@@ -53,20 +53,10 @@ void loadSubTaskConfig(TaskComposerNode& node, const YAML::Node& config)
   if (YAML::Node override_config = config["override"])
   {
     if (YAML::Node n = override_config["inputs"])
-    {
-      if (!n.IsMap())
-        throw std::runtime_error("YAML entry 'override' inputs must be a map type");
-
       graph_node.setOverrideInputPortMappings(n.as<TaskComposerPortMap>());
-    }
 
     if (YAML::Node n = override_config["outputs"])
-    {
-      if (!n.IsMap())
-        throw std::runtime_error("YAML entry 'override' outputs must be a map type");
-
       graph_node.setOverrideOutputPortMappings(n.as<TaskComposerPortMap>());
-    }
   }
 }
 
@@ -100,40 +90,12 @@ std::unique_ptr<TaskComposerNode> loadSubTask(const std::string& parent_name,
     task_node->setName(name);
 
     if (YAML::Node tc = entry["config"])
-    {
-      static const std::set<std::string> tasks_expected_keys{ "conditional", "abort_terminal", "override" };
-      tesseract::common::checkForUnknownKeys(tc, tasks_expected_keys);
-
       loadSubTaskConfig(*task_node, tc);
-    }
 
     return task_node;
   }
 
-  throw std::runtime_error("Sub task for '" + parent_name + "' node '" + name + "' missing 'class' or 'task' entry");
-}
-
-void validateSubTask(const std::string& parent_name, const std::string& key, const YAML::Node& node)
-{
-  if (!node.IsMap())
-    throw std::runtime_error("Sub task for '" + parent_name + "' node '" + key + "' should be a map");
-
-  bool is_class{ false };
-  bool is_task{ false };
-  for (YAML::const_iterator it = node.begin(); it != node.end(); ++it)
-  {
-    auto key = it->first.as<std::string>();
-    if (key == "class")
-      is_class = true;
-    else if (key == "task")
-      is_task = true;
-  }
-
-  if (is_class && is_task)
-    throw std::runtime_error("Sub task for '" + parent_name + "' node '" + key + "' has both 'class' and 'task' entry");
-
-  if (!is_class && !is_task)
-    throw std::runtime_error("Sub task for '" + parent_name + "' node '" + key + "' missing 'class' or 'task' entry");
+  return plugin_factory.createTaskComposerNode(entry["task"].as<std::string>());
 }
 
 tesseract::common::PropertyTree subTaskConfigSchema()

@@ -15,21 +15,18 @@ TEST(TesseractTaskComposerTaskflowUnit, TaskComposerExecutorSchemaTests)  // NOL
 {
   {
     auto schema = TaskflowTaskComposerExecutor::schema();
-    schema.mergeConfig(YAML::Load("{}"));
-    EXPECT_TRUE(schema.validate().empty());
+    EXPECT_TRUE(schema.applyConfig(YAML::Load("{}")).empty());
     EXPECT_TRUE(schema.at("threads").isNull());
   }
 
   {
     auto schema = TaskflowTaskComposerExecutor::schema();
-    schema.mergeConfig(YAML::Load("threads: 1"));
-    EXPECT_TRUE(schema.validate().empty());
+    EXPECT_TRUE(schema.applyConfig(YAML::Load("threads: 1")).empty());
   }
 
   {
     auto schema = TaskflowTaskComposerExecutor::schema();
-    schema.mergeConfig(YAML::Load("threads: 0"));
-    EXPECT_FALSE(schema.validate().empty());
+    EXPECT_FALSE(schema.applyConfig(YAML::Load("threads: 0")).empty());
   }
 }
 

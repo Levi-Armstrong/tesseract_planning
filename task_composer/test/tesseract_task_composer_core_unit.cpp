@@ -27,6 +27,8 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/task_composer/yaml_extensions.h>
 #include <tesseract/task_composer/yaml_utils.h>
 
+#include <tesseract/common/schema_registry.h>
+
 #include <tesseract/task_composer/test_suite/task_composer_node_info_unit.hpp>
 
 #include <tesseract/task_composer/nodes/done_task.h>
@@ -167,9 +169,8 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerNodePortsSchemaRuntimeParityTest
   {
     auto input_schema = ports.inputSchema();
     auto output_schema = ports.outputSchema();
-    input_schema.mergeConfig(YAML::Load(test_case.inputs));
-    output_schema.mergeConfig(YAML::Load(test_case.outputs));
-    const bool schema_valid = input_schema.validate().empty() && output_schema.validate().empty();
+    const bool schema_valid = input_schema.applyConfig(YAML::Load(test_case.inputs)).empty() &&
+                              output_schema.applyConfig(YAML::Load(test_case.outputs)).empty();
 
     bool runtime_valid{ false };
     try
@@ -257,8 +258,7 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerPortMapSchemaTests)  // NOLINT
 {
   {
     auto schema = YAML::convert<TaskComposerPortMap>::schema();
-    schema.mergeConfig(YAML::Load("single: input\nmultiple: [input1, input2]"));
-    EXPECT_TRUE(schema.validate().empty());
+    EXPECT_TRUE(schema.applyConfig(YAML::Load("single: input\nmultiple: [input1, input2]")).empty());
 
     const YAML::Node output = schema.toYAML();
     EXPECT_EQ(output["single"].as<std::string>(), "input");
@@ -267,19 +267,16 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerPortMapSchemaTests)  // NOLINT
 
   {
     auto schema = YAML::convert<TaskComposerPortMap>::schema();
-    schema.mergeConfig(YAML::Load("invalid: { nested: value }"));
-    const auto errors = schema.validate();
+    const auto errors = schema.applyConfig(YAML::Load("invalid: { nested: value }"));
     EXPECT_FALSE(errors.empty());
     EXPECT_TRUE(std::any_of(errors.cbegin(), errors.cend(), [](const std::string& error) {
-      return error.find("invalid") != std::string::npos &&
-             error.find("string or a list of strings") != std::string::npos;
+      return error.find("invalid") != std::string::npos && error.find("no branch matches") != std::string::npos;
     }));
   }
 
   {
     auto schema = YAML::convert<TaskComposerPortMap>::schema();
-    schema.mergeConfig(YAML::Load("invalid: [valid, { nested: value }]"));
-    const auto errors = schema.validate();
+    const auto errors = schema.applyConfig(YAML::Load("invalid: [valid, { nested: value }]"));
     EXPECT_FALSE(errors.empty());
     EXPECT_TRUE(std::any_of(errors.cbegin(), errors.cend(), [](const std::string& error) {
       return error.find("invalid") != std::string::npos && error.find("[1]") != std::string::npos;
@@ -288,9 +285,8 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerPortMapSchemaTests)  // NOLINT
 
   {
     auto schema = YAML::convert<TaskComposerPortMap>::schema();
-    schema.mergeConfig(YAML::Load("? [invalid, key]\n: value"));
     std::vector<std::string> errors;
-    EXPECT_NO_THROW(errors = schema.validate());
+    EXPECT_NO_THROW(errors = schema.applyConfig(YAML::Load("? [invalid, key]\n: value")));
     EXPECT_TRUE(std::any_of(errors.cbegin(), errors.cend(), [](const std::string& error) {
       return error.find("map key at index 0 is not a string") != std::string::npos;
     }));
@@ -301,27 +297,23 @@ TEST(TesseractTaskComposerCoreUnit, GraphEdgeSchemaTests)  // NOLINT
 {
   {
     auto schema = graphEdgeSchema();
-    schema.mergeConfig(YAML::Load("source: start\ndestinations: finish"));
-    EXPECT_TRUE(schema.validate().empty());
+    EXPECT_TRUE(schema.applyConfig(YAML::Load("source: start\ndestinations: finish")).empty());
     EXPECT_EQ(schema.toYAML()["destinations"].as<std::string>(), "finish");
   }
 
   {
     auto schema = graphEdgeSchema();
-    schema.mergeConfig(YAML::Load("source: start\ndestinations: [middle, finish]"));
-    EXPECT_TRUE(schema.validate().empty());
+    EXPECT_TRUE(schema.applyConfig(YAML::Load("source: start\ndestinations: [middle, finish]")).empty());
     EXPECT_EQ(schema.toYAML()["destinations"].as<std::vector<std::string>>(),
               (std::vector<std::string>{ "middle", "finish" }));
   }
 
   {
     auto schema = graphEdgeSchema();
-    schema.mergeConfig(YAML::Load("source: start\ndestinations: { invalid: finish }"));
-    const auto errors = schema.validate();
+    const auto errors = schema.applyConfig(YAML::Load("source: start\ndestinations: { invalid: finish }"));
     EXPECT_FALSE(errors.empty());
     EXPECT_TRUE(std::any_of(errors.cbegin(), errors.cend(), [](const std::string& error) {
-      return error.find("destinations") != std::string::npos &&
-             error.find("string or a list of strings") != std::string::npos;
+      return error.find("destinations") != std::string::npos && error.find("no branch matches") != std::string::npos;
     }));
   }
 }
@@ -329,32 +321,36 @@ TEST(TesseractTaskComposerCoreUnit, GraphEdgeSchemaTests)  // NOLINT
 TEST(TesseractTaskComposerCoreUnit, ConstructionSchemaDefaultsTests)  // NOLINT
 {
   auto task_schema = TaskComposerTask::schema(TaskComposerNodePorts{});
-  task_schema.mergeConfig(YAML::Load("{}"));
-  EXPECT_TRUE(task_schema.validate().empty());
+  EXPECT_TRUE(task_schema.applyConfig(YAML::Load("{}")).empty());
   EXPECT_FALSE(task_schema.at("conditional").as<bool>());
   EXPECT_FALSE(task_schema.at("trigger_abort").as<bool>());
+  EXPECT_EQ(task_schema.find("inputs"), nullptr);
+  EXPECT_EQ(task_schema.find("outputs"), nullptr);
 
   for (auto schema : { DoneTask::schema(), ErrorTask::schema(), StartTask::schema(), SyncTask::schema() })
   {
-    schema.mergeConfig(YAML::Load("{}"));
-    EXPECT_TRUE(schema.validate().empty());
+    EXPECT_TRUE(schema.applyConfig(YAML::Load("{}")).empty());
     EXPECT_FALSE(schema.at("conditional").as<bool>());
     EXPECT_FALSE(schema.at("trigger_abort").as<bool>());
+    EXPECT_EQ(schema.find("inputs"), nullptr);
+    EXPECT_EQ(schema.find("outputs"), nullptr);
   }
 
   auto has_data_schema = HasDataStorageEntryTask::schema();
-  has_data_schema.mergeConfig(YAML::Load("inputs: {storage_keys: [input]}"));
-  EXPECT_TRUE(has_data_schema.validate().empty());
+  EXPECT_NE(has_data_schema.find("inputs"), nullptr);
+  EXPECT_EQ(has_data_schema.find("outputs"), nullptr);
+  EXPECT_TRUE(has_data_schema.applyConfig(YAML::Load("inputs: {storage_keys: [input]}")).empty());
 
   auto remap_schema = RemapTask::schema();
-  remap_schema.mergeConfig(YAML::Load("inputs: {storage_keys: [input]}\noutputs: {storage_keys: [output]}"));
-  EXPECT_TRUE(remap_schema.validate().empty());
+  EXPECT_TRUE(remap_schema.applyConfig(YAML::Load("inputs: {storage_keys: [input]}\noutputs: {storage_keys: [output]}"))
+                  .empty());
   EXPECT_FALSE(remap_schema.at("copy").as<bool>());
 
   auto test_task_schema = test_suite::TestTask::schema();
-  test_task_schema.mergeConfig(YAML::Load("inputs: {port1: input1, port2: [input2]}\noutputs: {port1: output1, port2: "
-                                          "[output2]}"));
-  EXPECT_TRUE(test_task_schema.validate().empty());
+  EXPECT_TRUE(test_task_schema
+                  .applyConfig(YAML::Load("inputs: {port1: input1, port2: [input2]}\noutputs: {port1: output1, port2: "
+                                          "[output2]}"))
+                  .empty());
   EXPECT_FALSE(test_task_schema.at("throw_exception").as<bool>());
   EXPECT_FALSE(test_task_schema.at("set_abort").as<bool>());
   EXPECT_EQ(test_task_schema.at("return_value").as<int>(), 0);
@@ -381,8 +377,7 @@ TEST(TesseractTaskComposerCoreUnit, NodePortSchemaTests)  // NOLINT
 
   const auto validate = [](std::string_view config) {
     auto schema = RemapTask::schema();
-    schema.mergeConfig(YAML::Load(std::string(config)));
-    return schema.validate();
+    return schema.applyConfig(YAML::Load(std::string(config)));
   };
 
   EXPECT_TRUE(validate("inputs: {storage_keys: [input]}\noutputs: {storage_keys: [output]}").empty());
@@ -397,6 +392,39 @@ TEST(TesseractTaskComposerCoreUnit, NodePortSchemaTests)  // NOLINT
             property_type::createMap(REQUIRED_STRING_OR_STRING_LIST_SCHEMA_KEY));
   EXPECT_EQ(graph_schema.at("outputs").getAttribute(property_attribute::TYPE)->as<std::string>(),
             property_type::createMap(REQUIRED_STRING_OR_STRING_LIST_SCHEMA_KEY));
+
+  const auto port_mapping_schema = SchemaRegistry::instance()->get(REQUIRED_STRING_OR_STRING_LIST_SCHEMA_KEY);
+  EXPECT_EQ(port_mapping_schema.getAttribute(property_attribute::TYPE)->as<std::string>(), property_type::ONEOF);
+  EXPECT_EQ(port_mapping_schema.keys(), (std::vector<std::string>{ "single", "multiple" }));
+  EXPECT_EQ(port_mapping_schema.at("single").getAttribute(property_attribute::TYPE)->as<std::string>(),
+            property_type::STRING);
+  EXPECT_EQ(port_mapping_schema.at("multiple").getAttribute(property_attribute::TYPE)->as<std::string>(),
+            property_type::createList(property_type::STRING));
+}
+
+TEST(TesseractTaskComposerCoreUnit, NodeFactoryAggregatesSchemaValidationErrors)  // NOLINT
+{
+  using RemapTaskFactory = TaskComposerTaskFactory<RemapTask>;
+
+  const RemapTaskFactory factory;
+  const TaskComposerPluginFactory plugin_factory;
+  const YAML::Node config = YAML::Load(R"(inputs:
+  storage_keys: invalid
+unknown: true)");
+
+  try
+  {
+    static_cast<void>(factory.create("Remap", config, plugin_factory));
+    FAIL() << "Expected schema validation to fail";
+  }
+  catch (const tesseract::common::PropertyTreeValidationError& exception)
+  {
+    EXPECT_GE(exception.errors().size(), 3);
+    const std::string message = exception.what();
+    EXPECT_NE(message.find("inputs.storage_keys"), std::string::npos);
+    EXPECT_NE(message.find("outputs"), std::string::npos);
+    EXPECT_NE(message.find("unknown"), std::string::npos);
+  }
 }
 
 TEST(TesseractTaskComposerCoreUnit, GraphDataFlowValidationTests)  // NOLINT
@@ -482,8 +510,7 @@ TEST(TesseractTaskComposerCoreUnit, ForEachTaskSchemaTests)  // NOLINT
     auto schema = ForEachTask::schema();
     try
     {
-      schema.mergeConfig(YAML::Load(std::string(config)));
-      return schema.validate();
+      return schema.applyConfig(YAML::Load(std::string(config)));
     }
     catch (const std::exception& e)
     {
@@ -528,8 +555,7 @@ terminals: []
 
   {
     auto schema = TaskComposerGraph::schema();
-    schema.mergeConfig(common_config);
-    EXPECT_TRUE(schema.validate().empty());
+    EXPECT_TRUE(schema.applyConfig(common_config).empty());
     EXPECT_EQ(schema.at("namespace").as<std::string>(), "custom_namespace");
   }
 
@@ -537,9 +563,8 @@ terminals: []
     YAML::Node config = YAML::Clone(common_config);
     config["conditional"] = true;
     auto schema = TaskComposerGraph::schema();
-    schema.mergeConfig(config);
+    const auto errors = schema.applyConfig(config);
     EXPECT_TRUE(schema.at("conditional").as<bool>());
-    const auto errors = schema.validate();
     ASSERT_FALSE(errors.empty());
     EXPECT_TRUE(std::any_of(errors.cbegin(), errors.cend(), [](const std::string& error) {
       return error.find("conditional") != std::string::npos &&
@@ -551,8 +576,7 @@ terminals: []
     YAML::Node config = YAML::Clone(common_config);
     config["conditional"] = true;
     auto schema = TaskComposerPipeline::schema();
-    schema.mergeConfig(config);
-    EXPECT_TRUE(schema.validate().empty());
+    EXPECT_TRUE(schema.applyConfig(config).empty());
   }
 }
 
@@ -560,14 +584,13 @@ TEST(TesseractTaskComposerCoreUnit, GraphSchemaReferenceTests)  // NOLINT
 {
   const auto validate_destinations = [](std::string_view destinations) {
     auto schema = TaskComposerGraph::schema();
-    schema.mergeConfig(YAML::Load("nodes:\n"
-                                  "  start: { task: StartTask }\n"
-                                  "  finish: { task: DoneTask }\n"
-                                  "edges:\n"
-                                  "  - source: start\n"
-                                  "    destinations: " +
-                                  std::string(destinations) + "\nterminals: [finish]"));
-    return schema.validate();
+    return schema.applyConfig(YAML::Load("nodes:\n"
+                                         "  start: { task: StartTask }\n"
+                                         "  finish: { task: DoneTask }\n"
+                                         "edges:\n"
+                                         "  - source: start\n"
+                                         "    destinations: " +
+                                         std::string(destinations) + "\nterminals: [finish]"));
   };
 
   {
@@ -2783,7 +2806,7 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerForEachTaskTests)  // NOLINT
     std::string str = R"(config:
                            conditional: true)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<ForEachTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<ForEachTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -2792,7 +2815,7 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerForEachTaskTests)  // NOLINT
                            inputs:
                              container: input_data)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<ForEachTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<ForEachTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -2806,7 +2829,7 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerForEachTaskTests)  // NOLINT
                              input_port: program
                              output_port: program)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<ForEachTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<ForEachTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -2819,7 +2842,7 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerForEachTaskTests)  // NOLINT
                            operation:
                              task: TestPipeline)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<ForEachTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<ForEachTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -2833,7 +2856,7 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerForEachTaskTests)  // NOLINT
                              output_port: program
                              task: TestPipeline)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<ForEachTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<ForEachTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -2847,7 +2870,7 @@ TEST(TesseractTaskComposerCoreUnit, TaskComposerForEachTaskTests)  // NOLINT
                              input_port: program
                              task: TestPipeline)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<ForEachTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<ForEachTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Success

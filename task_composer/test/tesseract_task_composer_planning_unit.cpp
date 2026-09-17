@@ -46,6 +46,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/task_composer/task_composer_future.h>
 #include <tesseract/task_composer/task_composer_log.h>
 #include <tesseract/task_composer/task_composer_plugin_factory.h>
+#include <tesseract/task_composer/task_composer_plugin_factory_utils.h>
 #include <tesseract/task_composer/cereal_serialization.h>
 #include <tesseract/task_composer/test_suite/test_programs.hpp>
 
@@ -76,25 +77,27 @@ TEST(TesseractTaskComposerPlanningSchemaUnit, ConstructionSchemaTests)  // NOLIN
 {
   {
     auto schema = MotionPlannerTask<TrajOptMotionPlanner>::schema();
-    schema.mergeConfig(YAML::Load("inputs: {program: input, environment: environment, profiles: profiles}\noutputs: "
-                                  "{program: output}"));
-    EXPECT_TRUE(schema.validate().empty());
+    EXPECT_TRUE(schema
+                    .applyConfig(YAML::Load("inputs: {program: input, environment: environment, profiles: "
+                                            "profiles}\noutputs: "
+                                            "{program: output}"))
+                    .empty());
     EXPECT_TRUE(schema.at("format_result_as_input").as<bool>());
   }
 
   {
     auto schema = MotionPlannerTask<TrajOptMotionPlanner>::schema();
-    schema.mergeConfig(YAML::Load("inputs: {program: input, environment: environment, profiles: profiles}\n"
-                                  "outputs: {program: output}\n"
-                                  "format_result_as_input: false"));
-    EXPECT_TRUE(schema.validate().empty());
+    EXPECT_TRUE(schema
+                    .applyConfig(YAML::Load("inputs: {program: input, environment: environment, profiles: profiles}\n"
+                                            "outputs: {program: output}\n"
+                                            "format_result_as_input: false"))
+                    .empty());
     EXPECT_FALSE(schema.at("format_result_as_input").as<bool>());
   }
 
   {
     auto schema = RasterMotionTask::schema();
-    schema.mergeConfig(YAML::Load("{}"));
-    const auto errors = schema.validate();
+    const auto errors = schema.applyConfig(YAML::Load("{}"));
     EXPECT_TRUE(std::any_of(errors.cbegin(), errors.cend(), [](const std::string& error) {
       return error.find("freespace") != std::string::npos;
     }));
@@ -108,8 +111,7 @@ TEST(TesseractTaskComposerPlanningSchemaUnit, ConstructionSchemaTests)  // NOLIN
 
   {
     auto schema = RasterOnlyMotionTask::schema();
-    schema.mergeConfig(YAML::Load("{}"));
-    const auto errors = schema.validate();
+    const auto errors = schema.applyConfig(YAML::Load("{}"));
     EXPECT_TRUE(std::any_of(errors.cbegin(), errors.cend(), [](const std::string& error) {
       return error.find("raster") != std::string::npos;
     }));
@@ -3499,7 +3501,7 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterMotionTaskTests)  //
     std::string str = R"(config:
                            conditional: true)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<RasterMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -3510,7 +3512,7 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterMotionTaskTests)  //
                              environment: environment
                              profiles: profiles)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<RasterMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -3519,7 +3521,7 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterMotionTaskTests)  //
                            outputs:
                              program: output_data)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<RasterMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -3535,7 +3537,7 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterMotionTaskTests)  //
                              config:
                                abort_terminal: 0)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<RasterMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -3550,7 +3552,7 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterMotionTaskTests)  //
                            freespace:
                              task: FreespacePipeline)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<RasterMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -3567,7 +3569,7 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterMotionTaskTests)  //
                              config:
                                abort_terminal: 0)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<RasterMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -3584,7 +3586,7 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterMotionTaskTests)  //
                              config:
                                abort_terminal: 0)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<RasterMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -3601,7 +3603,7 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterMotionTaskTests)  //
                              config:
                                abort_terminal: 0)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<RasterMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -3621,7 +3623,7 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterMotionTaskTests)  //
                              config:
                                abort_terminal: 0)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<RasterMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -3640,7 +3642,7 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterMotionTaskTests)  //
                            raster:
                              task: CartesianPipeline)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<RasterMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -3661,7 +3663,7 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterMotionTaskTests)  //
                              config:
                                abort_terminal: 0)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<RasterMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -3682,7 +3684,7 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterMotionTaskTests)  //
                              config:
                                abort_terminal: 0)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<RasterMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -3703,7 +3705,7 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterMotionTaskTests)  //
                              config:
                                abort_terminal: 0)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<RasterMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -3727,7 +3729,7 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterMotionTaskTests)  //
                              config:
                                abort_terminal: 0)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(TaskComposerTaskFactory<RasterMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Test run method
@@ -4033,7 +4035,8 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterOnlyMotionTaskTests)
     std::string str = R"(config:
                            conditional: true)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterOnlyMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(
+        TaskComposerTaskFactory<RasterOnlyMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -4044,7 +4047,8 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterOnlyMotionTaskTests)
                              environment: environment
                              profiles: profiles)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterOnlyMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(
+        TaskComposerTaskFactory<RasterOnlyMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -4053,7 +4057,8 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterOnlyMotionTaskTests)
                            outputs:
                              program: output_data)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterOnlyMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(
+        TaskComposerTaskFactory<RasterOnlyMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -4069,7 +4074,8 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterOnlyMotionTaskTests)
                              config:
                                abort_terminal: 0)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterOnlyMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(
+        TaskComposerTaskFactory<RasterOnlyMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -4084,7 +4090,8 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterOnlyMotionTaskTests)
                            raster:
                              task: CartesianPipeline)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterOnlyMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(
+        TaskComposerTaskFactory<RasterOnlyMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -4101,7 +4108,8 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterOnlyMotionTaskTests)
                              config:
                                abort_terminal: 0)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterOnlyMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(
+        TaskComposerTaskFactory<RasterOnlyMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -4118,7 +4126,8 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterOnlyMotionTaskTests)
                              config:
                                abort_terminal: 0)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterOnlyMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(
+        TaskComposerTaskFactory<RasterOnlyMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -4135,7 +4144,8 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterOnlyMotionTaskTests)
                              config:
                                abort_terminal: 0)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterOnlyMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(
+        TaskComposerTaskFactory<RasterOnlyMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Construction failure
@@ -4155,7 +4165,8 @@ TEST_F(TesseractTaskComposerPlanningUnit, TaskComposerRasterOnlyMotionTaskTests)
                              config:
                                abort_terminal: 0)";
     YAML::Node config = YAML::Load(str);
-    EXPECT_ANY_THROW(std::make_unique<RasterOnlyMotionTask>("abc", config["config"], factory));  // NOLINT
+    EXPECT_ANY_THROW(
+        TaskComposerTaskFactory<RasterOnlyMotionTask>{}.create("abc", config["config"], factory));  // NOLINT
   }
 
   {  // Test run method

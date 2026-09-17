@@ -96,33 +96,16 @@ void TaskComposerNode::configure(const YAML::Node& config)
 {
   TaskComposerPortMap input_port_mappings;
   TaskComposerPortMap output_port_mappings;
-  try
-  {
-    ns_ = config["namespace"].IsDefined() ? config["namespace"].as<std::string>() : name_;
+  ns_ = config["namespace"].IsDefined() ? config["namespace"].as<std::string>() : name_;
 
-    if (YAML::Node n = config["conditional"])
-      conditional_ = n.as<bool>();
+  if (YAML::Node n = config["conditional"])
+    conditional_ = n.as<bool>();
 
-    if (YAML::Node n = config["inputs"])
-    {
-      if (!n.IsMap())
-        throw std::runtime_error("TaskComposerNode, inputs must be a map type");
+  if (YAML::Node n = config["inputs"])
+    input_port_mappings = n.as<TaskComposerPortMap>();
 
-      input_port_mappings = n.as<TaskComposerPortMap>();
-    }
-
-    if (YAML::Node n = config["outputs"])
-    {
-      if (!n.IsMap())
-        throw std::runtime_error("TaskComposerNode, outputs must be a map type");
-
-      output_port_mappings = n.as<TaskComposerPortMap>();
-    }
-  }
-  catch (const std::exception& e)
-  {
-    throw std::runtime_error("TaskComposerNode: Failed to parse yaml config data! Details: " + std::string(e.what()));
-  }
+  if (YAML::Node n = config["outputs"])
+    output_port_mappings = n.as<TaskComposerPortMap>();
 
   setPortMappings(std::move(input_port_mappings), std::move(output_port_mappings));
 }

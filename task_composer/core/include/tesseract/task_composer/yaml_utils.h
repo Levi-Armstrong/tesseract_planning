@@ -24,9 +24,10 @@
 #ifndef TESSERACT_TASK_COMPOSER_CORE_YAML_UTILS_H
 #define TESSERACT_TASK_COMPOSER_CORE_YAML_UTILS_H
 
-#include <memory>
-
 #include <tesseract/common/fwd.h>
+
+#include <memory>
+#include <string>
 
 namespace YAML
 {
@@ -57,15 +58,6 @@ std::unique_ptr<TaskComposerNode> loadSubTask(const std::string& parent_name,
  * @param config The sub task config
  */
 void loadSubTaskConfig(TaskComposerNode& node, const YAML::Node& config);
-
-/**
- * @brief Validate that yaml node is a sub task, must have either 'class' or 'task'
- * @details If both class and task are missing an exception is thrown.
- * @param paren_name The parent task name
- * @param key The yaml key
- * @param node The yaml node to validate
- */
-void validateSubTask(const std::string& parent_name, const std::string& key, const YAML::Node& node);
 
 /** @brief Registry key for the graph edge schema. */
 inline constexpr const char* GRAPH_EDGE_SCHEMA_KEY = "tesseract::task_composer::GraphEdge";
