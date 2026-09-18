@@ -71,6 +71,11 @@ ConstantTCPSpeedParameterizationTask::ConstantTCPSpeedParameterizationTask(
 {
 }
 
+tesseract::common::PropertyTree ConstantTCPSpeedParameterizationTask::schema()
+{
+  return TaskComposerTask::schema(ports());
+}
+
 const TaskComposerNodePorts& ConstantTCPSpeedParameterizationTask::ports()
 {
   static const TaskComposerNodePorts ports = []() {

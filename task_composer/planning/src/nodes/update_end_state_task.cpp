@@ -67,6 +67,8 @@ UpdateEndStateTask::UpdateEndStateTask(std::string name,
   setPortMappings(input_port_mappings_, output_port_mappings_);
 }
 
+tesseract::common::PropertyTree UpdateEndStateTask::schema() { return TaskComposerTask::schema(ports()); }
+
 const TaskComposerNodePorts& UpdateEndStateTask::ports()
 {
   static const TaskComposerNodePorts ports = []() {

@@ -74,6 +74,11 @@ IterativeSplineParameterizationTask::IterativeSplineParameterizationTask(
 {
 }
 
+tesseract::common::PropertyTree IterativeSplineParameterizationTask::schema()
+{
+  return TaskComposerTask::schema(ports());
+}
+
 const TaskComposerNodePorts& IterativeSplineParameterizationTask::ports()
 {
   static const TaskComposerNodePorts ports = []() {

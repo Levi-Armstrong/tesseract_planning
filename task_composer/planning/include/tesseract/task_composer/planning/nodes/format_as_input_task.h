@@ -76,7 +76,7 @@ public:
   FormatAsInputTask(FormatAsInputTask&&) = delete;
   FormatAsInputTask& operator=(FormatAsInputTask&&) = delete;
 
-  static tesseract::common::PropertyTree schema() { return TaskComposerTask::schema(ports()); }
+  static tesseract::common::PropertyTree schema();
   static const TaskComposerNodePorts& ports();
 
 private:

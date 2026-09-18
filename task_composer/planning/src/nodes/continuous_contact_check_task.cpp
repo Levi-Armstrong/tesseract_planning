@@ -75,6 +75,8 @@ ContinuousContactCheckTask::ContinuousContactCheckTask(std::string name,
 {
 }
 
+tesseract::common::PropertyTree ContinuousContactCheckTask::schema() { return TaskComposerTask::schema(ports()); }
+
 const TaskComposerNodePorts& ContinuousContactCheckTask::ports()
 {
   static const TaskComposerNodePorts ports = []() {

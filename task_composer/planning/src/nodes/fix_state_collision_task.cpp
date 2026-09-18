@@ -455,6 +455,8 @@ FixStateCollisionTask::FixStateCollisionTask(std::string name,
 {
 }
 
+tesseract::common::PropertyTree FixStateCollisionTask::schema() { return TaskComposerTask::schema(ports()); }
+
 const TaskComposerNodePorts& FixStateCollisionTask::ports()
 {
   static const TaskComposerNodePorts ports = []() {

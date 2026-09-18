@@ -63,6 +63,8 @@ KinematicLimitsCheckTask::KinematicLimitsCheckTask(std::string name,
   setPortMappings(input_port_mappings_, output_port_mappings_);
 }
 
+tesseract::common::PropertyTree KinematicLimitsCheckTask::schema() { return TaskComposerTask::schema(ports()); }
+
 const TaskComposerNodePorts& KinematicLimitsCheckTask::ports()
 {
   static const TaskComposerNodePorts ports = []() {

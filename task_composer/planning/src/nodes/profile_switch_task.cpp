@@ -62,6 +62,8 @@ ProfileSwitchTask::ProfileSwitchTask(std::string name,
 {
 }
 
+tesseract::common::PropertyTree ProfileSwitchTask::schema() { return TaskComposerTask::schema(ports()); }
+
 const TaskComposerNodePorts& ProfileSwitchTask::ports()
 {
   static const TaskComposerNodePorts ports = []() {

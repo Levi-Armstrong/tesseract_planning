@@ -31,7 +31,7 @@ public:
                                    const TaskComposerPluginFactory& plugin_factory);
   ~HasDataStorageEntryTask() override = default;
 
-  static tesseract::common::PropertyTree schema() { return TaskComposerTask::schema(ports()); }
+  static tesseract::common::PropertyTree schema();
   static const TaskComposerNodePorts& ports();
 
 private:

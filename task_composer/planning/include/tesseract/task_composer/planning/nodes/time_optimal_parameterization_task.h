@@ -65,7 +65,7 @@ public:
   TimeOptimalParameterizationTask(TimeOptimalParameterizationTask&&) = delete;
   TimeOptimalParameterizationTask& operator=(TimeOptimalParameterizationTask&&) = delete;
 
-  static tesseract::common::PropertyTree schema() { return TaskComposerTask::schema(ports()); }
+  static tesseract::common::PropertyTree schema();
   static const TaskComposerNodePorts& ports();
 
 private:

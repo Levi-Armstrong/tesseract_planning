@@ -46,12 +46,8 @@ public:
   explicit ErrorTask(std::string name, const YAML::Node& config, const TaskComposerPluginFactory& plugin_factory);
   ~ErrorTask() override = default;
 
-  static tesseract::common::PropertyTree schema() { return TaskComposerTask::schema(ports()); }
-  static const TaskComposerNodePorts& ports()
-  {
-    static const TaskComposerNodePorts ports;
-    return ports;
-  }
+  static tesseract::common::PropertyTree schema();
+  static const TaskComposerNodePorts& ports();
 
 private:
   TaskComposerNodeInfo runImpl(TaskComposerContext& context,

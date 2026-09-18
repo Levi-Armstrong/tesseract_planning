@@ -46,6 +46,8 @@ FormatAsResultTask::FormatAsResultTask(std::string name,
     throw std::runtime_error("FormatAsResultTask input and output storage-key mappings must have the same size");
 }
 
+tesseract::common::PropertyTree FormatAsResultTask::schema() { return TaskComposerTask::schema(ports()); }
+
 const TaskComposerNodePorts& FormatAsResultTask::ports()
 {
   static const TaskComposerNodePorts ports = []() {

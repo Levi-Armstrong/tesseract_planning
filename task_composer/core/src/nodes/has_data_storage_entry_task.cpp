@@ -31,6 +31,8 @@ HasDataStorageEntryTask::HasDataStorageEntryTask(std::string name,
 {
 }
 
+tesseract::common::PropertyTree HasDataStorageEntryTask::schema() { return TaskComposerTask::schema(ports()); }
+
 const TaskComposerNodePorts& HasDataStorageEntryTask::ports()
 {
   static const TaskComposerNodePorts ports = []() {

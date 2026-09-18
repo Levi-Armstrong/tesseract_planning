@@ -72,6 +72,8 @@ UpsampleTrajectoryTask::UpsampleTrajectoryTask(std::string name,
 {
 }
 
+tesseract::common::PropertyTree UpsampleTrajectoryTask::schema() { return TaskComposerTask::schema(ports()); }
+
 const TaskComposerNodePorts& UpsampleTrajectoryTask::ports()
 {
   static const TaskComposerNodePorts ports = []() {

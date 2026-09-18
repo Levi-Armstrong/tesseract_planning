@@ -65,6 +65,8 @@ FormatPlanningInputTask::FormatPlanningInputTask(std::string name,
 {
 }
 
+tesseract::common::PropertyTree FormatPlanningInputTask::schema() { return TaskComposerTask::schema(ports()); }
+
 const TaskComposerNodePorts& FormatPlanningInputTask::ports()
 {
   static const TaskComposerNodePorts ports = []() {

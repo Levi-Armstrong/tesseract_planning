@@ -72,6 +72,8 @@ RuckigTrajectorySmoothingTask::RuckigTrajectorySmoothingTask(std::string name,
 {
 }
 
+tesseract::common::PropertyTree RuckigTrajectorySmoothingTask::schema() { return TaskComposerTask::schema(ports()); }
+
 const TaskComposerNodePorts& RuckigTrajectorySmoothingTask::ports()
 {
   static const TaskComposerNodePorts ports = []() {

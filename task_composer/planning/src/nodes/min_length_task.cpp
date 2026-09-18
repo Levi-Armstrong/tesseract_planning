@@ -73,6 +73,8 @@ MinLengthTask::MinLengthTask(std::string name,
 {
 }
 
+tesseract::common::PropertyTree MinLengthTask::schema() { return TaskComposerTask::schema(ports()); }
+
 const TaskComposerNodePorts& MinLengthTask::ports()
 {
   static const TaskComposerNodePorts ports = []() {

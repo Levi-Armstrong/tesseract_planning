@@ -78,6 +78,8 @@ TimeOptimalParameterizationTask::TimeOptimalParameterizationTask(std::string nam
 {
 }
 
+tesseract::common::PropertyTree TimeOptimalParameterizationTask::schema() { return TaskComposerTask::schema(ports()); }
+
 const TaskComposerNodePorts& TimeOptimalParameterizationTask::ports()
 {
   static const TaskComposerNodePorts ports = []() {

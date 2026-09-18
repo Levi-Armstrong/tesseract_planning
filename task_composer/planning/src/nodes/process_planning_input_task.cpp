@@ -62,6 +62,8 @@ ProcessPlanningInputTask::ProcessPlanningInputTask(std::string name,
 {
 }
 
+tesseract::common::PropertyTree ProcessPlanningInputTask::schema() { return TaskComposerTask::schema(ports()); }
+
 const TaskComposerNodePorts& ProcessPlanningInputTask::ports()
 {
   static const TaskComposerNodePorts ports = []() {

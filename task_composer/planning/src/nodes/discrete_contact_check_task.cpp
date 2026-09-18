@@ -75,6 +75,8 @@ DiscreteContactCheckTask::DiscreteContactCheckTask(std::string name,
 {
 }
 
+tesseract::common::PropertyTree DiscreteContactCheckTask::schema() { return TaskComposerTask::schema(ports()); }
+
 const TaskComposerNodePorts& DiscreteContactCheckTask::ports()
 {
   static const TaskComposerNodePorts ports = []() {

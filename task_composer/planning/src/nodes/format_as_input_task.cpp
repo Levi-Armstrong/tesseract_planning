@@ -70,6 +70,8 @@ FormatAsInputTask::FormatAsInputTask(std::string name,
 {
 }
 
+tesseract::common::PropertyTree FormatAsInputTask::schema() { return TaskComposerTask::schema(ports()); }
+
 const TaskComposerNodePorts& FormatAsInputTask::ports()
 {
   static const TaskComposerNodePorts ports = []() {

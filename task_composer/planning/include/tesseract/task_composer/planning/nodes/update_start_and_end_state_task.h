@@ -65,7 +65,7 @@ public:
   bool operator==(const UpdateStartAndEndStateTask& rhs) const;
   bool operator!=(const UpdateStartAndEndStateTask& rhs) const;
 
-  static tesseract::common::PropertyTree schema() { return TaskComposerTask::schema(ports()); }
+  static tesseract::common::PropertyTree schema();
   static const TaskComposerNodePorts& ports();
 
 private:

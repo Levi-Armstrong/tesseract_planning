@@ -73,6 +73,8 @@ FixStateBoundsTask::FixStateBoundsTask(std::string name,
 {
 }
 
+tesseract::common::PropertyTree FixStateBoundsTask::schema() { return TaskComposerTask::schema(ports()); }
+
 const TaskComposerNodePorts& FixStateBoundsTask::ports()
 {
   static const TaskComposerNodePorts ports = []() {
