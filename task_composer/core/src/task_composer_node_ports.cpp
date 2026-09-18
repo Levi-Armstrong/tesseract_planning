@@ -195,9 +195,9 @@ TaskComposerNodePorts::add(Direction direction, Requirement requirement, std::st
     throw std::invalid_argument("Port name must not be empty");
 
   auto& ports = direction == Direction::INPUT ? input_ports_ : output_ports_;
-  const auto result = ports.emplace(name, PortDefinition{ cardinality, requirement });
-  if (!result.second)
+  if (ports.find(name) != ports.end())
     throw std::invalid_argument("Port '" + name + "' is already declared for this direction");
+  ports.emplace(std::move(name), PortDefinition{ cardinality, requirement });
 
   return *this;
 }

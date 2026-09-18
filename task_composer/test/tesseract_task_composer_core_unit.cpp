@@ -67,6 +67,15 @@ struct LegacyTaskComposerNodePortsArchiveFixture
     ar(cereal::make_nvp("output_optional", output_optional));
   }
 };
+
+std::string getRequiredStringAttribute(const tesseract::common::PropertyTree& schema, std::string_view name)
+{
+  const auto attribute = schema.getAttribute(name);
+  if (!attribute.has_value())
+    throw std::runtime_error("Required schema attribute is missing: " + std::string(name));
+
+  return attribute->as<std::string>();
+}
 }  // namespace
 
 TEST(TesseractTaskComposerCoreUnit, TaskComposerPortMapTests)  // NOLINT
@@ -368,10 +377,8 @@ TEST(TesseractTaskComposerCoreUnit, NodePortSchemaTests)  // NOLINT
   ASSERT_TRUE(node_schema.at("outputs").at(RemapTask::INOUT_STORAGE_KEYS_PORT).isRequired());
   EXPECT_EQ(node_schema.at("inputs").keys(), std::vector<std::string>{ RemapTask::INOUT_STORAGE_KEYS_PORT });
   EXPECT_EQ(node_schema.at("outputs").keys(), std::vector<std::string>{ RemapTask::INOUT_STORAGE_KEYS_PORT });
-  EXPECT_EQ(node_schema.at("inputs")
-                .at(RemapTask::INOUT_STORAGE_KEYS_PORT)
-                .getAttribute(property_attribute::TYPE)
-                ->as<std::string>(),
+  EXPECT_EQ(getRequiredStringAttribute(node_schema.at("inputs").at(RemapTask::INOUT_STORAGE_KEYS_PORT),
+                                       property_attribute::TYPE),
             property_type::createList(property_type::STRING));
   EXPECT_EQ(RemapTaskFactory{}.schema().at("inputs").keys(), node_schema.at("inputs").keys());
 
@@ -388,17 +395,17 @@ TEST(TesseractTaskComposerCoreUnit, NodePortSchemaTests)  // NOLINT
 
   using GraphTaskFactory = TaskComposerTaskFactory<TaskComposerGraph>;
   const auto graph_schema = GraphTaskFactory{}.schema();
-  EXPECT_EQ(graph_schema.at("inputs").getAttribute(property_attribute::TYPE)->as<std::string>(),
+  EXPECT_EQ(getRequiredStringAttribute(graph_schema.at("inputs"), property_attribute::TYPE),
             property_type::createMap(REQUIRED_STRING_OR_STRING_LIST_SCHEMA_KEY));
-  EXPECT_EQ(graph_schema.at("outputs").getAttribute(property_attribute::TYPE)->as<std::string>(),
+  EXPECT_EQ(getRequiredStringAttribute(graph_schema.at("outputs"), property_attribute::TYPE),
             property_type::createMap(REQUIRED_STRING_OR_STRING_LIST_SCHEMA_KEY));
 
   const auto port_mapping_schema = SchemaRegistry::instance()->get(REQUIRED_STRING_OR_STRING_LIST_SCHEMA_KEY);
-  EXPECT_EQ(port_mapping_schema.getAttribute(property_attribute::TYPE)->as<std::string>(), property_type::ONEOF);
+  EXPECT_EQ(getRequiredStringAttribute(port_mapping_schema, property_attribute::TYPE), property_type::ONEOF);
   EXPECT_EQ(port_mapping_schema.keys(), (std::vector<std::string>{ "single", "multiple" }));
-  EXPECT_EQ(port_mapping_schema.at("single").getAttribute(property_attribute::TYPE)->as<std::string>(),
+  EXPECT_EQ(getRequiredStringAttribute(port_mapping_schema.at("single"), property_attribute::TYPE),
             property_type::STRING);
-  EXPECT_EQ(port_mapping_schema.at("multiple").getAttribute(property_attribute::TYPE)->as<std::string>(),
+  EXPECT_EQ(getRequiredStringAttribute(port_mapping_schema.at("multiple"), property_attribute::TYPE),
             property_type::createList(property_type::STRING));
 }
 
