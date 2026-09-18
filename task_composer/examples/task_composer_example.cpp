@@ -18,9 +18,9 @@ class AddTaskComposerNode : public TaskComposerTask
 {
 public:
   // Requried
-  static constexpr char INPUT_LEFT_PORT[] = "left";
-  static constexpr char INPUT_RIGHT_PORT[] = "right";
-  static constexpr char OUTPUT_RESULT_PORT[] = "result";
+  static constexpr const char* INPUT_LEFT_PORT = "left";
+  static constexpr const char* INPUT_RIGHT_PORT = "right";
+  static constexpr const char* OUTPUT_RESULT_PORT = "result";
 
   AddTaskComposerNode(std::string left_key, std::string right_key, std::string output_key)
     : TaskComposerTask("AddTwoNumbers", AddTaskComposerNode::ports(), false)
@@ -59,9 +59,9 @@ class MultiplyTaskComposerNode : public TaskComposerTask
 {
 public:
   // Requried
-  static constexpr char INPUT_LEFT_PORT[] = "left";
-  static constexpr char INPUT_RIGHT_PORT[] = "right";
-  static constexpr char OUTPUT_RESULT_PORT[] = "result";
+  static constexpr const char* INPUT_LEFT_PORT = "left";
+  static constexpr const char* INPUT_RIGHT_PORT = "right";
+  static constexpr const char* OUTPUT_RESULT_PORT = "result";
 
   MultiplyTaskComposerNode(std::string left_key, std::string right_key, std::string output_key)
     : TaskComposerTask("MultiplyTwoNumbers", MultiplyTaskComposerNode::ports(), false)
